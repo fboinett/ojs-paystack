@@ -1,0 +1,12 @@
+{
+    "name": "fboinett/ojs-paystack",
+    "description": "Paystack payment gateway plugin for Open Journal Systems 3.4",
+    "license": "GPL-3.0-or-later",
+    "type": "ojs-plugin",
+    "require": {
+        "php": ">=8.0.2"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "Bundled with OJS 3.4 core; no separate install required."
+    }
+}

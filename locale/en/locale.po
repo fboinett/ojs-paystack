@@ -1,0 +1,201 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: ojs-paystack\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22T00:00:00+00:00\n"
+"PO-Revision-Date: 2026-09-22T00:00:00+00:00\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "plugins.paymethod.paystack.displayName"
+msgstr "Paystack Fee Payment"
+
+msgid "plugins.paymethod.paystack.description"
+msgstr "Payments will be processed using the Paystack payment gateway."
+
+msgid "plugins.paymethod.paystack.settings"
+msgstr "Paystack Payment Settings"
+
+msgid "plugins.paymethod.paystack.settings.urls"
+msgstr "Paystack URLs"
+
+msgid "plugins.paymethod.paystack.settings.urls.description"
+msgstr "Copy these URLs into your Paystack Dashboard under Settings → API Keys & Webhooks."
+
+msgid "plugins.paymethod.paystack.settings.callbackUrl"
+msgstr "Callback URL"
+
+msgid "plugins.paymethod.paystack.settings.webhookUrl"
+msgstr "Webhook URL"
+
+msgid "plugins.paymethod.paystack.settings.supportedCurrencies"
+msgstr "Supported currencies"
+
+msgid "plugins.paymethod.paystack.settings.testMode"
+msgstr "Test Mode"
+
+msgid "plugins.paymethod.paystack.settings.testMode.description"
+msgstr "Use Paystack test keys. No live money is collected while this is enabled."
+
+msgid "plugins.paymethod.paystack.settings.testPublicKey"
+msgstr "Test Public Key"
+
+msgid "plugins.paymethod.paystack.settings.testSecretKey"
+msgstr "Test Secret Key"
+
+msgid "plugins.paymethod.paystack.settings.livePublicKey"
+msgstr "Live Public Key"
+
+msgid "plugins.paymethod.paystack.settings.liveSecretKey"
+msgstr "Live Secret Key"
+
+msgid "plugins.paymethod.paystack.settings.secretKeyMasked"
+msgstr "The saved secret is masked. Leave this field as-is to keep the current key, or paste a new key to replace it."
+
+msgid "plugins.paymethod.paystack.settings.sendConfirmationEmail"
+msgstr "Email the payer after a successful payment"
+
+msgid "plugins.paymethod.paystack.settings.sendAdminNotification"
+msgstr "Email the journal contact after a successful payment"
+
+msgid "plugins.paymethod.paystack.testMode.banner"
+msgstr "Paystack is in TEST MODE. No live payments will be collected."
+
+msgid "plugins.paymethod.paystack.error"
+msgstr "A Paystack transaction error occurred. Please contact the journal manager."
+
+msgid "plugins.paymethod.paystack.error.httpsRequired"
+msgstr "HTTPS is required for live Paystack payments. Enable SSL or switch the plugin to Test Mode."
+
+msgid "plugins.paymethod.paystack.error.configuration"
+msgstr "Paystack is not fully configured. The journal manager must add API keys first."
+
+msgid "plugins.paymethod.paystack.error.currency"
+msgstr "This journal currency is not supported by Paystack (NGN, USD, GHS, ZAR, KES, XOF)."
+
+msgid "plugins.paymethod.paystack.error.verificationFailed"
+msgstr "Paystack could not verify this payment. If you were charged, contact the journal manager with your payment reference."
+
+msgid "plugins.paymethod.paystack.paymentDetails.description"
+msgstr "Review the amount below, then continue to Paystack’s secure checkout. Card details never touch this journal."
+
+msgid "plugins.paymethod.paystack.paymentDetails.paymentFor"
+msgstr "Payment for"
+
+msgid "plugins.paymethod.paystack.paymentDetails.amount"
+msgstr "Amount"
+
+msgid "plugins.paymethod.paystack.paymentDetails.payNow"
+msgstr "Pay with Paystack"
+
+msgid "plugins.paymethod.paystack.paymentConfirmation.title"
+msgstr "Payment successful"
+
+msgid "plugins.paymethod.paystack.paymentConfirmation.successMessage"
+msgstr "Thank you. Your payment has been verified and recorded."
+
+msgid "plugins.paymethod.paystack.paymentHistory.title"
+msgstr "Payment history"
+
+msgid "plugins.paymethod.paystack.paymentHistory.description"
+msgstr "Paystack payments you have completed for this journal."
+
+msgid "plugins.paymethod.paystack.paymentHistory.viewHistory"
+msgstr "Payment history"
+
+msgid "plugins.paymethod.paystack.paymentHistory.viewReceipt"
+msgstr "Receipt"
+
+msgid "plugins.paymethod.paystack.paymentHistory.date"
+msgstr "Date"
+
+msgid "plugins.paymethod.paystack.paymentHistory.amount"
+msgstr "Amount"
+
+msgid "plugins.paymethod.paystack.paymentHistory.status"
+msgstr "Status"
+
+msgid "plugins.paymethod.paystack.paymentHistory.actions"
+msgstr "Actions"
+
+msgid "plugins.paymethod.paystack.paymentHistory.empty"
+msgstr "You have not completed any Paystack payments yet."
+
+msgid "plugins.paymethod.paystack.paymentReceipt.title"
+msgstr "Payment receipt"
+
+msgid "plugins.paymethod.paystack.paymentReceipt.billedTo"
+msgstr "Billed to"
+
+msgid "plugins.paymethod.paystack.paymentReceipt.totalPaid"
+msgstr "Total paid"
+
+msgid "plugins.paymethod.paystack.transactions.tab"
+msgstr "Paystack transactions"
+
+msgid "plugins.paymethod.paystack.transactions.reference"
+msgstr "Reference"
+
+msgid "plugins.paymethod.paystack.transactions.amount"
+msgstr "Amount"
+
+msgid "plugins.paymethod.paystack.transactions.view"
+msgstr "View"
+
+msgid "plugins.paymethod.paystack.transactionDetails"
+msgstr "Transaction details"
+
+msgid "plugins.paymethod.paystack.refund.action"
+msgstr "Refund"
+
+msgid "plugins.paymethod.paystack.refund.refunded"
+msgstr "Already refunded"
+
+msgid "plugins.paymethod.paystack.refund.remaining"
+msgstr "Refundable remaining"
+
+msgid "plugins.paymethod.paystack.refund.amount"
+msgstr "Refund amount"
+
+msgid "plugins.paymethod.paystack.refund.amountHelp"
+msgstr "Leave the amount as-is for a full refund, or enter a smaller amount for a partial refund."
+
+msgid "plugins.paymethod.paystack.refund.success"
+msgstr "Refund submitted to Paystack."
+
+msgid "plugins.paymethod.paystack.refund.notRefundable"
+msgstr "This payment cannot be refunded."
+
+msgid "plugins.paymethod.paystack.refund.noneRemaining"
+msgstr "Nothing remains to refund."
+
+msgid "plugins.paymethod.paystack.refund.invalidAmount"
+msgstr "Refund amount is invalid."
+
+msgid "mailable.paystack.paymentConfirmation.name"
+msgstr "Paystack Payment Confirmation"
+
+msgid "mailable.paystack.paymentConfirmation.description"
+msgstr "Sent to the payer after Paystack confirms a successful payment."
+
+msgid "mailable.paystack.paymentConfirmationAdmin.name"
+msgstr "Paystack Payment Notification"
+
+msgid "mailable.paystack.paymentConfirmationAdmin.description"
+msgstr "Sent to the journal contact after Paystack confirms a successful payment."
+
+msgid "mailable.paystack.paymentFailed.name"
+msgstr "Paystack Payment Failed"
+
+msgid "mailable.paystack.paymentFailed.description"
+msgstr "Sent to the payer when Paystack verification fails."
+
+msgid "mailable.paystack.paymentRefunded.name"
+msgstr "Paystack Payment Refunded"
+
+msgid "mailable.paystack.paymentRefunded.description"
+msgstr "Sent to the payer after a refund is processed."

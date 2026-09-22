@@ -1,0 +1,82 @@
+.page_paystack_payment {
+	max-width: 42rem;
+	margin: 0 auto 3rem;
+}
+
+.paystack-card {
+	background: #fff;
+	border: 1px solid #d5dbe3;
+	border-radius: 12px;
+	padding: 1.75rem 1.5rem;
+	box-shadow: 0 8px 24px rgba(1, 27, 51, 0.06);
+}
+
+.paystack-card h1 {
+	margin-top: 0;
+	color: #011b33;
+}
+
+.paystack-test-banner {
+	background: #fff6d8;
+	border: 1px solid #e6c35c;
+	color: #5c4a00;
+	padding: 0.75rem 1rem;
+	border-radius: 8px;
+}
+
+.paystack-dl {
+	display: grid;
+	gap: 0.85rem;
+	margin: 1.5rem 0;
+}
+
+.paystack-dl div {
+	display: grid;
+	grid-template-columns: 8.5rem 1fr;
+	gap: 0.75rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid #eef1f4;
+}
+
+.paystack-dl dt {
+	font-weight: 600;
+	color: #4b5563;
+}
+
+.paystack-dl dd {
+	margin: 0;
+}
+
+.paystack-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+
+.paystack-actions .cmp_button,
+.paystack-actions button {
+	background: #0ba4db;
+	border-color: #0ba4db;
+	color: #fff;
+}
+
+.paystack-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.paystack-table th,
+.paystack-table td {
+	text-align: left;
+	padding: 0.6rem 0.4rem;
+	border-bottom: 1px solid #e5e7eb;
+	vertical-align: top;
+}
+
+@media (max-width: 640px) {
+	.paystack-dl div {
+		grid-template-columns: 1fr;
+		gap: 0.2rem;
+	}
+}
