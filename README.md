@@ -21,7 +21,7 @@ It is a 3.4-native plugin.
 - Payer confirmation, failure, refund, and journal-contact emails
 - Manager **Paystack transactions** list with full or partial refunds
 - Reader payment history and receipt pages
-- **Submission Payment tab** after peer review, so authors can pay the APC before proofreading
+- **Payment stage** after Review (before Copyediting) for editors and authors, with **Awaiting Payment** and **Pay now**
 
 ## Author fees (pay after review, before proofreading)
 
@@ -48,13 +48,15 @@ OJS emails the assigned author a payment link and creates a task notification.
 
 ### 3. Author: pay from the submission
 
-1. Open the submission from the dashboard (or the email link).
-2. Open the **Payment** tab.
-3. Click **Pay with Paystack**.
+1. Open the submission from the author dashboard (or the email link).
+2. Open the **Payment** stage — it sits after **Review** and before **Copyediting**.
+3. Status is **Awaiting Payment**. Click **Pay with Paystack**.
 
-After Paystack confirms the payment, the tab shows **Paid**. Copyediting can be in progress; start **Production / proofreading** only after the tab shows Paid (or Waived).
+After Paystack confirms, the stage shows **Paid**. Copyediting can be in progress; start **Production / proofreading** only after it shows Paid (or Waived).
 
-Editors can also mark the fee Paid or Waived from the **Payments** dropdown at the top of the workflow.
+Editors see the same Payment stage. They do not pay; they wait for the author, or mark Paid/Waived from the **Payments** dropdown.
+
+Enable **Paystack Payment Stage** (generic plugin) as well as Paystack Fee Payment, so authors see the stage on their dashboard.
 
 > **Note.** OJS currently queues the APC against the *editor* who requested it, then emails the *author*. This plugin lets the assigned author pay anyway and records the payment in their name.
 
@@ -70,13 +72,24 @@ Editors can also mark the fee Paid or Waived from the **Payments** dropdown at t
    ```
 
    The folder **must** be named `paystack`.
-3. In OJS go to **Settings → Website → Plugins → Payment Plugins** and enable **Paystack Fee Payment**.
-4. If the plugin does not appear after a manual copy, run once from the OJS root:
+3. Copy the companion stage plugin:
+
+   ```
+   plugins/generic/paystackStage/index.php
+   plugins/generic/paystackStage/version.xml
+   plugins/generic/paystackStage/PaystackStagePlugin.php
+   ```
+
+   The `paystackStage` folder is included inside this repository. Copy it to `plugins/generic/paystackStage`.
+4. In OJS go to **Settings → Website → Plugins → Payment Plugins** and enable **Paystack Fee Payment**.
+5. Under **Generic Plugins**, enable **Paystack Payment Stage** (this is what shows the Payment stage to authors).
+6. If a plugin does not appear after a manual copy, run from the OJS root:
 
    ```
    php lib/pkp/tools/installPluginVersion.php plugins/paymethod/paystack/version.xml
+   php lib/pkp/tools/installPluginVersion.php plugins/generic/paystackStage/version.xml
    ```
-5. Go to **Settings → Distribution → Payments**:
+7. Go to **Settings → Distribution → Payments**:
    - Enable payments
    - Choose a supported currency
    - Select **Paystack Fee Payment**
