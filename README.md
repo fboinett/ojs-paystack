@@ -2,7 +2,7 @@
 
 Paystack payment gateway plugin for **Open Journal Systems 3.4** (including **3.4.0.10**).
 
-It is a 3.4-native plugin. Do **not** install [Airix360/PaystackOJS](https://github.com/Airix360/PaystackOJS) on 3.4 — that project targets OJS 3.5 only.
+It is a 3.4-native plugin.
 
 | | |
 |---|---|
