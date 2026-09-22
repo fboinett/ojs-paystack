@@ -108,8 +108,12 @@ msgstr "Thank you. Your payment has been verified and recorded."
 msgid "plugins.paymethod.paystack.paymentConfirmation.redirecting"
 msgstr "You will be returned to your submissions dashboard in a moment."
 
-msgid "plugins.paymethod.paystack.paymentConfirmation.returnToDashboard"
-msgstr "Return to my submissions"
+msgid "plugins.paymethod.paystack.payments.article"
+msgstr "Article"
+
+msgid "plugins.paymethod.paystack.payments.submissionGone"
+msgstr "Submission #{$id} (removed)"
+
 
 
 msgid "plugins.paymethod.paystack.paymentHistory.title"

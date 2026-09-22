@@ -94,6 +94,7 @@ Use HTTPS in live mode.
 - Test / live API keys with masked secrets
 - Payer confirmation, failure, refund, and journal-contact emails
 - Manager **Paystack transactions** list with refunds
+- Payments report includes an **Article** column linking each fee to its submission
 - Payment stage after Review for editors and authors (**Awaiting Payment** + **Pay now**)
 - After payment, authors return to their submissions dashboard
 

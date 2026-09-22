@@ -11,6 +11,7 @@
 			<thead>
 				<tr>
 					<th>{translate key="plugins.paymethod.paystack.paymentHistory.date"}</th>
+					<th>{translate key="plugins.paymethod.paystack.payments.article"}</th>
 					<th>{translate key="plugins.paymethod.paystack.transactions.reference"}</th>
 					<th>{translate key="plugins.paymethod.paystack.transactions.amount"}</th>
 					<th>{translate key="plugins.paymethod.paystack.paymentHistory.status"}</th>
@@ -21,6 +22,7 @@
 				{foreach from=$transactions item=row}
 					<tr>
 						<td>{$row.createdAt|escape}</td>
+						<td>{$row.articleHtml nofilter}</td>
 						<td><code>{$row.reference|escape}</code></td>
 						<td>{$row.amountFormatted|escape}</td>
 						<td>{$row.status|escape}</td>

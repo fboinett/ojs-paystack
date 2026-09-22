@@ -20,6 +20,7 @@ use APP\journal\Journal;
 use APP\payment\ojs\OJSPaymentManager;
 use APP\plugins\paymethod\paystack\classes\ApcOwnerCompatibility;
 use APP\plugins\paymethod\paystack\classes\PaystackClient;
+use APP\plugins\paymethod\paystack\classes\PaystackPaymentsGridCellProvider;
 use APP\plugins\paymethod\paystack\classes\PaystackSchemaMigration;
 use APP\plugins\paymethod\paystack\mailables\PaymentConfirmation;
 use APP\plugins\paymethod\paystack\mailables\PaymentConfirmationAdmin;
@@ -83,6 +84,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             Hook::add('Form::config::before', [$this, 'addSettings']);
             Hook::add('Mailer::Mailables', [$this, 'addMailable']);
             Hook::add('TemplateManager::display', [$this, 'loadFrontendStyles']);
+            Hook::add('LoadComponentHandler', [$this, 'loadPaymentsGrid']);
             // Do not run DDL here. Creating tables while OJS records an
             // editorial decision can implicit-commit the MySQL transaction
             // and make "Record Decision" fail after Request Payment.
@@ -382,6 +384,27 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             error_log('Paystack styles failed: ' . $e->getMessage());
         }
         return false;
+    }
+
+    /**
+     * Add an Article column to Settings → Distribution → Payments → Payments.
+     */
+    public function loadPaymentsGrid(string $hookName, array $args): bool
+    {
+        try {
+            $component = $args[0] ?? '';
+            if ($component !== 'grid.subscriptions.PaymentsGridHandler') {
+                return false;
+            }
+            $dir = dirname(__FILE__);
+            require_once $dir . '/classes/PaystackPaymentsGridCellProvider.php';
+            require_once $dir . '/classes/PaystackPaymentsGridHandler.php';
+            $args[2] = new \APP\plugins\paymethod\paystack\classes\PaystackPaymentsGridHandler();
+            return true;
+        } catch (\Throwable $e) {
+            error_log('Paystack payments grid failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     public function isTestMode(int $contextId): bool
@@ -1005,12 +1028,14 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         $transactions = [];
         foreach ($rows as $row) {
             $row = (array) $row;
+            $article = $this->articleLinkForPaystackRow($request, $row);
             $transactions[] = [
                 'id' => (int) $row['paystack_payment_id'],
                 'reference' => $row['reference'],
                 'amountFormatted' => self::currencySymbol((string) $row['currency']) . number_format((float) $row['amount'], 2),
                 'status' => $row['status'],
                 'createdAt' => $row['created_at'],
+                'articleHtml' => $article['html'],
                 'canRefund' => in_array($row['status'], ['success', 'partial_refund'], true)
                     && ((float) $row['amount'] - (float) $row['refunded_amount']) > 0.009,
                 'refundUrl' => $request->getRouter()->url($request, null, null, 'manage', null, [
@@ -1264,6 +1289,36 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             return $url;
         }
         return $request->url(null, 'user');
+    }
+
+    /**
+     * @return array{text:string,url:string,html:string}
+     */
+    private function articleLinkForPaystackRow(Request $request, array $row): array
+    {
+        $empty = ['text' => '—', 'url' => '', 'html' => '—'];
+        $type = 0;
+        $assocId = 0;
+        $completedPaymentDao = DAORegistry::getDAO('OJSCompletedPaymentDAO');
+        if (!empty($row['completed_payment_id']) && $completedPaymentDao) {
+            $completed = $completedPaymentDao->getById((int) $row['completed_payment_id']);
+            if ($completed) {
+                $type = (int) $completed->getType();
+                $assocId = (int) $completed->getAssocId();
+            }
+        }
+        if ($assocId <= 0 && !empty($row['queued_payment_id'])) {
+            $queuedPaymentDao = DAORegistry::getDAO('QueuedPaymentDAO');
+            $queued = $queuedPaymentDao ? $queuedPaymentDao->getById((int) $row['queued_payment_id']) : null;
+            if ($queued) {
+                $type = (int) $queued->getType();
+                $assocId = (int) $queued->getAssocId();
+            }
+        }
+        if ($assocId <= 0) {
+            return $empty;
+        }
+        return PaystackPaymentsGridCellProvider::assocLink($request, $type, $assocId);
     }
 
     private function showMessage(Request $request, string $messageKey): void
