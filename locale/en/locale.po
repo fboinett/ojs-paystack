@@ -199,3 +199,40 @@ msgstr "Paystack Payment Refunded"
 
 msgid "mailable.paystack.paymentRefunded.description"
 msgstr "Sent to the payer after a refund is processed."
+
+msgid "plugins.paymethod.paystack.workflow.tab"
+msgstr "Payment"
+
+msgid "plugins.paymethod.paystack.workflow.heading"
+msgstr "Publication fee"
+
+msgid "plugins.paymethod.paystack.workflow.intro"
+msgstr "After peer review, the author pays the article processing charge before proofreading and production begin."
+
+msgid "plugins.paymethod.paystack.workflow.fee"
+msgstr "Amount due"
+
+msgid "plugins.paymethod.paystack.workflow.status.paid"
+msgstr "Paid"
+
+msgid "plugins.paymethod.paystack.workflow.status.waived"
+msgstr "Waived"
+
+msgid "plugins.paymethod.paystack.workflow.status.due"
+msgstr "Payment due"
+
+msgid "plugins.paymethod.paystack.workflow.status.waiting"
+msgstr "Waiting for the editor to request payment"
+
+msgid "plugins.paymethod.paystack.workflow.payHelp"
+msgstr "Pay now with Paystack. You will return to this submission after the payment is confirmed."
+
+msgid "plugins.paymethod.paystack.workflow.editorRequested"
+msgstr "The editor has requested this fee. The assigned author should open this tab and click Pay with Paystack."
+
+msgid "plugins.paymethod.paystack.workflow.waitingHelp"
+msgstr "When the editor accepts the submission after review, they should choose “Request publication fee”. This tab will then show a Pay now button for the author."
+
+msgid "plugins.paymethod.paystack.workflow.paidHelp"
+msgstr "The publication fee is complete. Copyediting and proofreading can continue."
+

@@ -17,6 +17,8 @@ use APP\core\Application;
 use APP\core\Request;
 use APP\facades\Repo;
 use APP\journal\Journal;
+use APP\payment\ojs\OJSPaymentManager;
+use APP\plugins\paymethod\paystack\classes\ApcOwnerCompatibility;
 use APP\plugins\paymethod\paystack\classes\PaystackClient;
 use APP\plugins\paymethod\paystack\classes\PaystackSchemaMigration;
 use APP\plugins\paymethod\paystack\mailables\PaymentConfirmation;
@@ -81,6 +83,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             Hook::add('Form::config::before', [$this, 'addSettings']);
             Hook::add('Mailer::Mailables', [$this, 'addMailable']);
             Hook::add('TemplateManager::display', [$this, 'loadFrontendStyles']);
+            Hook::add('Template::Workflow', [$this, 'addWorkflowTab']);
             if ($this->getEnabled($mainContextId)) {
                 $this->ensureSchema();
             }
@@ -349,15 +352,25 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             && strpos($template, 'paymentConfirmation.tpl') === false
             && strpos($template, 'paymentHistory.tpl') === false
             && strpos($template, 'paymentReceipt.tpl') === false
+            && strpos($template, 'workflow.tpl') === false
+            && strpos($template, 'authorDashboard.tpl') === false
         ) {
             return false;
         }
         $request = Application::get()->getRequest();
+        $base = $request->getBaseUrl() . '/' . $this->getPluginPath();
         $templateMgr->addStyleSheet(
             'paystackFrontendCss',
-            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/css/frontend.css',
-            ['contexts' => 'frontend']
+            $base . '/css/frontend.css',
+            ['contexts' => ['frontend', 'backend']]
         );
+        if (strpos($template, 'workflow.tpl') !== false || strpos($template, 'authorDashboard.tpl') !== false) {
+            $templateMgr->addStyleSheet(
+                'paystackWorkflowCss',
+                $base . '/css/workflow.css',
+                ['contexts' => ['backend']]
+            );
+        }
         return false;
     }
 
@@ -408,6 +421,110 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         return $map[$code] ?? ($code . ' ');
     }
 
+    /**
+     * Add a Payment tab to the editorial workflow and author dashboard.
+     *
+     * @param string $hookName
+     * @param array $args
+     */
+    public function addWorkflowTab($hookName, $args)
+    {
+        $smarty = $args[1];
+        $output =& $args[2];
+        $request = Application::get()->getRequest();
+        $context = $request->getContext();
+        $submission = $smarty->getTemplateVars('submission');
+        if (!$context || !$submission || !$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
+            return false;
+        }
+
+        $paymentManager = Application::getPaymentManager($context);
+        if (!method_exists($paymentManager, 'publicationEnabled') || !$paymentManager->publicationEnabled()) {
+            return false;
+        }
+
+        $status = $this->publicationFeeStatus($context, $submission);
+        $queued = $status['queued'];
+        $user = $request->getUser();
+        $canPay = false;
+        $payUrl = '';
+        if ($queued && $user) {
+            $dao = DAORegistry::getDAO('QueuedPaymentDAO');
+            $canPay = ApcOwnerCompatibility::authorizeAndRepair($queued, $user, $dao);
+            if ($canPay) {
+                $payUrl = $request->url(null, 'payment', 'pay', [$queued->getId()]);
+            }
+        }
+
+        $amount = (float) $context->getData('publicationFee');
+        $currency = strtoupper((string) $context->getData('currency'));
+        $smarty->assign([
+            'paystackFeeStatus' => $status['status'],
+            'paystackFeeAmount' => $amount,
+            'paystackCurrency' => $currency,
+            'paystackCurrencySymbol' => self::currencySymbol($currency),
+            'paystackCanPay' => $canPay,
+            'paystackPayUrl' => $payUrl,
+        ]);
+        $output .= $smarty->fetch($this->getTemplateResource('workflowPaymentTab.tpl'));
+        return false;
+    }
+
+    /**
+     * @return array{status:string,queued:?QueuedPayment}
+     */
+    private function publicationFeeStatus($context, $submission): array
+    {
+        $completedPaymentDao = DAORegistry::getDAO('OJSCompletedPaymentDAO');
+        $completed = $completedPaymentDao
+            ? $completedPaymentDao->getByAssoc(null, OJSPaymentManager::PAYMENT_TYPE_PUBLICATION, $submission->getId())
+            : null;
+        if ($completed) {
+            return [
+                'status' => ((float) $completed->getAmount() > 0) ? 'paid' : 'waived',
+                'queued' => null,
+            ];
+        }
+
+        $queued = $this->findPublicationQueuedPayment((int) $context->getId(), (int) $submission->getId());
+        if ($queued) {
+            return ['status' => 'due', 'queued' => $queued];
+        }
+        return ['status' => 'waiting', 'queued' => null];
+    }
+
+    private function findPublicationQueuedPayment(int $contextId, int $submissionId): ?QueuedPayment
+    {
+        $dao = DAORegistry::getDAO('QueuedPaymentDAO');
+        if (!$dao) {
+            return null;
+        }
+        try {
+            $rows = DB::table('queued_payments')->select('queued_payment_id')->get();
+        } catch (\Throwable $e) {
+            return null;
+        }
+        foreach ($rows as $row) {
+            $id = (int) (is_object($row) ? $row->queued_payment_id : ($row['queued_payment_id'] ?? 0));
+            $payment = $dao->getById($id);
+            if (
+                $payment instanceof QueuedPayment
+                && (int) $payment->getType() === (int) OJSPaymentManager::PAYMENT_TYPE_PUBLICATION
+                && (int) $payment->getAssocId() === $submissionId
+                && (int) $payment->getContextId() === $contextId
+            ) {
+                return $payment;
+            }
+        }
+        return null;
+    }
+
+    public function authorizePayer($queuedPayment, $user): bool
+    {
+        $dao = DAORegistry::getDAO('QueuedPaymentDAO');
+        return ApcOwnerCompatibility::authorizeAndRepair($queuedPayment, $user, $dao);
+    }
+
     private function handleInitiate(Request $request): void
     {
         if (Config::getVar('general', 'sandbox', false)) {
@@ -427,7 +544,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             return;
         }
         $contextId = (int) $journal->getId();
-        if ((int) $queuedPayment->getUserId() !== (int) $user->getId()) {
+        if (!$this->authorizePayer($queuedPayment, $user)) {
             $this->showMessage($request, 'user.authorization.accessDenied');
             return;
         }
@@ -503,7 +620,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         }
         $contextId = (int) $journal->getId();
         $user = $request->getUser();
-        if ($user && (int) $queuedPayment->getUserId() !== (int) $user->getId()) {
+        if ($user && !$this->authorizePayer($queuedPayment, $user)) {
             $this->showMessage($request, 'user.authorization.accessDenied');
             return;
         }

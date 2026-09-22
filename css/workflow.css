@@ -1,0 +1,36 @@
+.paystack-workflow {
+	max-width: 40rem;
+	padding: 1.25rem 0 2rem;
+}
+
+.paystack-workflow__status {
+	border: 1px solid #d5dbe3;
+	border-radius: 8px;
+	padding: 1rem 1.25rem;
+	margin: 1rem 0;
+	background: #f8fafc;
+}
+
+.paystack-workflow__status--due {
+	border-color: #e6c35c;
+	background: #fff8e1;
+}
+
+.paystack-workflow__status--paid {
+	border-color: #86c9a3;
+	background: #edf8f1;
+}
+
+.paystack-workflow__status--waived {
+	border-color: #c5d0dc;
+}
+
+.paystack-workflow .pkpButton {
+	display: inline-block;
+	background: #0ba4db;
+	color: #fff;
+	padding: 0.55rem 1.1rem;
+	border-radius: 6px;
+	text-decoration: none;
+	font-weight: 600;
+}

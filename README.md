@@ -21,6 +21,40 @@ It is a 3.4-native plugin.
 - Payer confirmation, failure, refund, and journal-contact emails
 - Manager **Paystack transactions** list with full or partial refunds
 - Reader payment history and receipt pages
+- **Submission Payment tab** after peer review, so authors can pay the APC before proofreading
+
+## Author fees (pay after review, before proofreading)
+
+OJS charges article processing fees at the **end of Review**, when the editor accepts the submission and sends it to Copyediting. Proofreading happens later in Production — so the author can pay before that work starts.
+
+### 1. Turn on the fee
+
+1. Enable this plugin and select **Paystack Fee Payment** under **Settings → Distribution → Payments**.
+2. Open **Payments → Payment Types** (left menu after payments are enabled).
+3. Under **Author Fees**, enter the **Article Processing Charge** (must be greater than 0) and save.
+
+Until that amount is set, OJS will not show “Request publication fee” and this plugin’s Payment tab stays hidden.
+
+### 2. Editor: request payment after review
+
+1. Complete peer review.
+2. Click **Send to Copyediting** (or **Accept**).
+3. On the extra screen, choose **Request publication fee** (do not waive unless the fee should be skipped).
+4. Record the editorial decision.
+
+OJS emails the assigned author a payment link and creates a task notification.
+
+### 3. Author: pay from the submission
+
+1. Open the submission from the dashboard (or the email link).
+2. Open the **Payment** tab.
+3. Click **Pay with Paystack**.
+
+After Paystack confirms the payment, the tab shows **Paid**. Copyediting can be in progress; start **Production / proofreading** only after the tab shows Paid (or Waived).
+
+Editors can also mark the fee Paid or Waived from the **Payments** dropdown at the top of the workflow.
+
+> **Note.** OJS currently queues the APC against the *editor* who requested it, then emails the *author*. This plugin lets the assigned author pay anyway and records the payment in their name.
 
 ## Install
 

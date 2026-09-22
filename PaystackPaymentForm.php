@@ -15,8 +15,10 @@ namespace APP\plugins\paymethod\paystack;
 
 use APP\core\Application;
 use APP\core\Request;
+use APP\plugins\paymethod\paystack\classes\ApcOwnerCompatibility;
 use APP\template\TemplateManager;
 use PKP\config\Config;
+use PKP\db\DAORegistry;
 use PKP\form\Form;
 use PKP\payment\QueuedPayment;
 
@@ -61,7 +63,8 @@ class PaystackPaymentForm extends Form
             return;
         }
 
-        if (!$user || (int) $this->_queuedPayment->getUserId() !== (int) $user->getId()) {
+        $queuedPaymentDao = DAORegistry::getDAO('QueuedPaymentDAO');
+        if (!$user || !ApcOwnerCompatibility::authorizeAndRepair($this->_queuedPayment, $user, $queuedPaymentDao)) {
             TemplateManager::getManager($request)
                 ->assign('message', 'user.authorization.accessDenied')
                 ->display('frontend/pages/message.tpl');
