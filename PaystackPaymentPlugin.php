@@ -275,7 +275,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                 $this->handleInitiate($request);
                 return;
             case 'callback':
-                $this->handleCallback($request);
+                $this->handleCallback($request, $args);
                 return;
             case 'webhook':
                 $this->handleWebhook($request);
@@ -586,10 +586,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             : __('common.payment');
 
         $reference = 'OJS' . $queuedPayment->getId() . '_' . time() . '_' . random_int(10000, 99999);
-        $callbackUrl = $request->url(null, 'payment', 'plugin', [$this->getName(), 'callback'], [
-            'queuedPaymentId' => $queuedPayment->getId(),
-            'reference' => $reference,
-        ]);
+        // Paystack appends ?reference=... to this URL. Do not put a query
+        // string here or OJS routing / queuedPaymentId will be overwritten.
+        $callbackUrl = $request->url(null, 'payment', 'plugin', [$this->getName(), 'callback']);
 
         try {
             $this->ensureSchema();
@@ -626,33 +625,138 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         }
     }
 
-    private function handleCallback(Request $request): void
+    private function handleCallback(Request $request, array $args = []): void
     {
         $journal = $request->getJournal();
-        $reference = trim((string) $request->getUserVar('reference'));
-        $queuedPayment = $this->getQueuedPayment((int) $request->getUserVar('queuedPaymentId'));
-        if (!$journal || $reference === '' || !$queuedPayment) {
-            $this->showMessage($request, 'plugins.paymethod.paystack.error.verificationFailed');
+        $reference = $this->callbackReference($request);
+        if (!$journal) {
+            error_log('Paystack callback: missing journal context. reference=' . $reference);
+            $this->showVerificationFailed($request, $reference);
             return;
         }
         $contextId = (int) $journal->getId();
-        $user = $request->getUser();
-        if ($user && !$this->authorizePayer($queuedPayment, $user)) {
-            $this->showMessage($request, 'user.authorization.accessDenied');
+        $this->ensureSchema();
+
+        if ($reference === '') {
+            error_log('Paystack callback: missing reference query parameter.');
+            $this->showVerificationFailed($request, '');
             return;
         }
 
         try {
             $verified = $this->client($contextId)->verifyTransaction($reference);
             $data = $verified['data'] ?? [];
+            if (($data['status'] ?? '') !== 'success') {
+                throw new Exception('Paystack transaction status is "' . (string) ($data['status'] ?? '') . '".');
+            }
+
+            $record = $this->getPaymentRecordByReference($contextId, $reference);
+            $queuedPayment = $this->resolveCallbackQueuedPayment($request, $args, $reference, $data);
+
+            if (!$queuedPayment) {
+                if ($record && in_array((string) $record['status'], ['success', 'refunded', 'partial_refund'], true)) {
+                    $this->showAlreadyPaid($request, $record, $reference);
+                    return;
+                }
+                throw new Exception('Could not match Paystack reference ' . $reference . ' to a queued payment.');
+            }
+
             $this->assertVerifiedMatchesQueued($queuedPayment, $data, $reference);
             $this->fulfillIfNeeded($request, $queuedPayment, $reference, $data);
             $this->showConfirmation($request, $queuedPayment, $reference, $data);
         } catch (Exception $e) {
             error_log('Paystack callback failed: ' . $e->getMessage());
-            $this->notifyFailed($journal, $queuedPayment, $reference, $e->getMessage());
-            $this->showMessage($request, 'plugins.paymethod.paystack.error.verificationFailed');
+            $queuedPayment = $this->resolveCallbackQueuedPayment($request, $args, $reference, []);
+            if ($queuedPayment) {
+                $this->notifyFailed($journal, $queuedPayment, $reference, $e->getMessage());
+            }
+            $this->showVerificationFailed($request, $reference);
         }
+    }
+
+    private function callbackReference(Request $request): string
+    {
+        $reference = trim((string) ($request->getUserVar('reference') ?: $request->getUserVar('trxref')));
+        foreach (['?', '&', '#'] as $cut) {
+            if (strpos($reference, $cut) !== false) {
+                $reference = strstr($reference, $cut, true);
+            }
+        }
+        return trim($reference);
+    }
+
+    /**
+     * @param array $verifyData Paystack verify payload data, if already loaded
+     */
+    private function resolveCallbackQueuedPayment(Request $request, array $args, string $reference, array $verifyData): ?QueuedPayment
+    {
+        $journal = $request->getJournal();
+        $contextId = $journal ? (int) $journal->getId() : 0;
+        $ids = [];
+
+        $metaId = (int) ($verifyData['metadata']['queuedPaymentId'] ?? 0);
+        if ($metaId > 0) {
+            $ids[] = $metaId;
+        }
+
+        if ($contextId && $reference !== '') {
+            $record = $this->getPaymentRecordByReference($contextId, $reference);
+            if ($record) {
+                $ids[] = (int) $record['queued_payment_id'];
+            }
+        }
+
+        if (preg_match('/^OJS(\d+)_/', $reference, $matches)) {
+            $ids[] = (int) $matches[1];
+        }
+
+        if (isset($args[1]) && ctype_digit((string) $args[1])) {
+            $ids[] = (int) $args[1];
+        }
+
+        $queryId = (int) $request->getUserVar('queuedPaymentId');
+        if ($queryId > 0) {
+            $ids[] = $queryId;
+        }
+
+        foreach (array_unique(array_filter($ids)) as $id) {
+            $queued = $this->getQueuedPayment((int) $id);
+            if ($queued) {
+                return $queued;
+            }
+        }
+        return null;
+    }
+
+    private function showVerificationFailed(Request $request, string $reference): void
+    {
+        $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->assign([
+            'pageTitle' => 'common.payment',
+            'reference' => $reference,
+            'contactUrl' => $request->url(null, 'about', 'contact'),
+        ]);
+        $templateMgr->display($this->getTemplateResource('verificationFailed.tpl'));
+    }
+
+    private function showAlreadyPaid(Request $request, array $record, string $reference): void
+    {
+        $currency = strtoupper((string) ($record['currency'] ?? ''));
+        $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->assign([
+            'pageTitle' => 'plugins.paymethod.paystack.paymentConfirmation.title',
+            'paymentName' => __('payment.type.publication'),
+            'amount' => (float) ($record['amount'] ?? 0),
+            'currencyCode' => $currency,
+            'currencySymbol' => self::currencySymbol($currency),
+            'reference' => $reference,
+            'continueUrl' => $request->url(null, 'submissions'),
+            'receiptUrl' => $request->url(null, 'payment', 'plugin', [$this->getName(), 'receipt'], [
+                'reference' => $reference,
+            ]),
+            'historyUrl' => $request->url(null, 'payment', 'plugin', [$this->getName(), 'history']),
+        ]);
+        $templateMgr->display($this->getTemplateResource('paymentConfirmation.tpl'));
     }
 
     private function handleWebhook(Request $request): void

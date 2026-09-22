@@ -89,13 +89,14 @@ class PaystackClient
         }
 
         $response = $this->http->request($method, $path, $options);
+        $status = $response->getStatusCode();
         $body = (string) $response->getBody();
         $data = json_decode($body, true);
         if (!is_array($data)) {
-            throw new Exception('Paystack returned a non-JSON response (HTTP ' . $response->getStatusCode() . ').');
+            throw new Exception('Paystack returned a non-JSON response (HTTP ' . $status . '). Body: ' . substr($body, 0, 300));
         }
         if (empty($data['status'])) {
-            $message = $data['message'] ?? ('Paystack request failed (HTTP ' . $response->getStatusCode() . ').');
+            $message = $data['message'] ?? ('Paystack request failed (HTTP ' . $status . ').');
             throw new Exception($message);
         }
         return $data;

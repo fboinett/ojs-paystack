@@ -100,7 +100,7 @@ Use **test keys** (`pk_test_…` / `sk_test_…`) until a test charge works, the
 1. A reader/author opens an OJS payment link.
 2. They confirm the amount and click **Pay with Paystack**.
 3. Paystack hosts checkout, then redirects back to the callback.
-4. The plugin calls `GET /transaction/verify/{reference}` and re-checks amount, currency, and reference.
+4. The plugin calls `GET /transaction/verify/{reference}` and re-checks amount, currency, and reference. The browser callback URL has no query string (Paystack appends `?reference=`); if the webhook already completed the payment, the callback shows a success page instead of an error.
 5. OJS marks the queued payment complete.
 6. Paystack also posts `charge.success` to the webhook; the fulfilment guard makes that a no-op if the callback already finished.
 

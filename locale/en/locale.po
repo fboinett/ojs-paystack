@@ -80,6 +80,13 @@ msgstr "This journal currency is not supported by Paystack (NGN, USD, GHS, ZAR, 
 msgid "plugins.paymethod.paystack.error.verificationFailed"
 msgstr "Paystack could not verify this payment. If you were charged, contact the journal manager with your payment reference."
 
+msgid "plugins.paymethod.paystack.error.verificationFailed.title"
+msgstr "Payment verification failed"
+
+msgid "plugins.paymethod.paystack.error.verificationFailed.help"
+msgstr "Give the journal manager the reference above. If you were not charged, try the payment link from your submission Payment tab again."
+
+
 msgid "plugins.paymethod.paystack.paymentDetails.description"
 msgstr "Review the amount below, then continue to Paystack’s secure checkout. Card details never touch this journal."
 
