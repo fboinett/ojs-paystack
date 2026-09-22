@@ -786,7 +786,8 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             'currencyCode' => $currency,
             'currencySymbol' => self::currencySymbol($currency),
             'reference' => $reference,
-            'continueUrl' => $request->url(null, 'submissions'),
+            'continueUrl' => $this->authorSubmissionsUrl($request),
+            'continueUrlJson' => json_encode($this->authorSubmissionsUrl($request)),
             'receiptUrl' => $request->url(null, 'payment', 'plugin', [$this->getName(), 'receipt'], [
                 'reference' => $reference,
             ]),
@@ -1239,13 +1240,30 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             'currencyCode' => $currency,
             'currencySymbol' => self::currencySymbol($currency),
             'reference' => $reference,
-            'continueUrl' => $queuedPayment->getRequestUrl() ?: $request->url(null, 'index'),
+            'continueUrl' => $this->authorSubmissionsUrl($request),
+            'continueUrlJson' => json_encode($this->authorSubmissionsUrl($request)),
             'receiptUrl' => $request->url(null, 'payment', 'plugin', [$this->getName(), 'receipt'], [
                 'reference' => $reference,
             ]),
             'historyUrl' => $request->url(null, 'payment', 'plugin', [$this->getName(), 'history']),
         ]);
         $templateMgr->display($this->getTemplateResource('paymentConfirmation.tpl'));
+    }
+
+    /**
+     * Logged-in submissions dashboard (not the journal homepage).
+     */
+    private function authorSubmissionsUrl(Request $request): string
+    {
+        $url = $request->url(null, 'submissions');
+        if (is_string($url) && $url !== '') {
+            return $url;
+        }
+        $url = $request->url(null, 'dashboard');
+        if (is_string($url) && $url !== '') {
+            return $url;
+        }
+        return $request->url(null, 'user');
     }
 
     private function showMessage(Request $request, string $messageKey): void

@@ -92,7 +92,7 @@ class PaystackPaymentForm extends Form
                 [$this->_plugin->getName(), 'initiate'],
                 ['queuedPaymentId' => $this->_queuedPayment->getId()]
             ),
-            'cancelUrl' => $this->_queuedPayment->getRequestUrl() ?: $request->url(null, 'index'),
+            'cancelUrl' => $request->url(null, 'submissions'),
         ]);
         $templateMgr->display($this->_plugin->getTemplateResource('paymentDetails.tpl'));
     }

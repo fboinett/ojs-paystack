@@ -6,10 +6,17 @@
  *}
 {include file="frontend/components/header.tpl" pageTitle="plugins.paymethod.paystack.paymentConfirmation.title"}
 
+<script>
+	window.setTimeout(function () {
+		window.location.replace({$continueUrlJson nofilter});
+	}, 2500);
+</script>
+
 <div class="page page_paystack_payment">
 	<div class="paystack-card">
 		<h1>{translate key="plugins.paymethod.paystack.paymentConfirmation.title"}</h1>
 		<p>{translate key="plugins.paymethod.paystack.paymentConfirmation.successMessage"}</p>
+		<p>{translate key="plugins.paymethod.paystack.paymentConfirmation.redirecting"}</p>
 
 		<dl class="paystack-dl">
 			<div>
@@ -28,13 +35,10 @@
 
 		<div class="paystack-actions">
 			<a href="{$continueUrl|escape}" class="cmp_button">
-				{translate key="common.continue"}
+				{translate key="plugins.paymethod.paystack.paymentConfirmation.returnToDashboard"}
 			</a>
 			<a href="{$receiptUrl|escape}" class="cmp_button cmp_button_outline">
 				{translate key="plugins.paymethod.paystack.paymentHistory.viewReceipt"}
-			</a>
-			<a href="{$historyUrl|escape}" class="cmp_button cmp_button_outline">
-				{translate key="plugins.paymethod.paystack.paymentHistory.viewHistory"}
 			</a>
 		</div>
 	</div>
