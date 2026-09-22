@@ -42,6 +42,8 @@ Until that amount is set, OJS will not show “Request publication fee” and th
 3. On the extra screen, choose **Request publication fee** (do not waive unless the fee should be skipped).
 4. Record the editorial decision.
 
+If **Record Decision** shows an unexpected error after the Request Payment step, install plugin **1.1.1.0+** (it no longer creates database tables in the middle of that save). If it still fails, set **Settings → Distribution → DOIs → Automatic DOI Assignment** to **Upon publication** rather than **Upon reaching the copyediting stage** — that is a known OJS 3.4.0.10 bug when the article is not yet in an issue.
+
 OJS emails the assigned author a payment link and creates a task notification.
 
 ### 3. Author: pay from the submission

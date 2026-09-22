@@ -84,9 +84,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             Hook::add('Mailer::Mailables', [$this, 'addMailable']);
             Hook::add('TemplateManager::display', [$this, 'loadFrontendStyles']);
             Hook::add('Template::Workflow', [$this, 'addWorkflowTab']);
-            if ($this->getEnabled($mainContextId)) {
-                $this->ensureSchema();
-            }
+            // Do not run DDL here. Creating tables while OJS records an
+            // editorial decision can implicit-commit the MySQL transaction
+            // and make "Record Decision" fail after Request Payment.
         }
         return $success;
     }
@@ -115,6 +115,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
      */
     public function addSettings($hookName, $form)
     {
+        if (!is_object($form) || !isset($form->id)) {
+            return;
+        }
         import('lib.pkp.classes.components.forms.context.PKPPaymentSettingsForm'); // FORM_PAYMENT_SETTINGS
         if ($form->id !== FORM_PAYMENT_SETTINGS) {
             return;
@@ -334,6 +337,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
      */
     public function addMailable(string $hookName, array $args): void
     {
+        if (!isset($args[0]) || !is_object($args[0]) || !method_exists($args[0], 'push')) {
+            return;
+        }
         $args[0]->push(PaymentConfirmation::class);
         $args[0]->push(PaymentConfirmationAdmin::class);
         $args[0]->push(PaymentFailed::class);
@@ -345,31 +351,35 @@ class PaystackPaymentPlugin extends PaymethodPlugin
      */
     public function loadFrontendStyles(string $hookName, array $args): bool
     {
-        $templateMgr = $args[0];
-        $template = (string) ($args[1] ?? '');
-        if (
-            strpos($template, 'paymentDetails.tpl') === false
-            && strpos($template, 'paymentConfirmation.tpl') === false
-            && strpos($template, 'paymentHistory.tpl') === false
-            && strpos($template, 'paymentReceipt.tpl') === false
-            && strpos($template, 'workflow.tpl') === false
-            && strpos($template, 'authorDashboard.tpl') === false
-        ) {
-            return false;
-        }
-        $request = Application::get()->getRequest();
-        $base = $request->getBaseUrl() . '/' . $this->getPluginPath();
-        $templateMgr->addStyleSheet(
-            'paystackFrontendCss',
-            $base . '/css/frontend.css',
-            ['contexts' => ['frontend', 'backend']]
-        );
-        if (strpos($template, 'workflow.tpl') !== false || strpos($template, 'authorDashboard.tpl') !== false) {
+        try {
+            $templateMgr = $args[0];
+            $template = (string) ($args[1] ?? '');
+            if (
+                strpos($template, 'paymentDetails.tpl') === false
+                && strpos($template, 'paymentConfirmation.tpl') === false
+                && strpos($template, 'paymentHistory.tpl') === false
+                && strpos($template, 'paymentReceipt.tpl') === false
+                && strpos($template, 'workflow.tpl') === false
+                && strpos($template, 'authorDashboard.tpl') === false
+            ) {
+                return false;
+            }
+            $request = Application::get()->getRequest();
+            $base = $request->getBaseUrl() . '/' . $this->getPluginPath();
             $templateMgr->addStyleSheet(
-                'paystackWorkflowCss',
-                $base . '/css/workflow.css',
-                ['contexts' => ['backend']]
+                'paystackFrontendCss',
+                $base . '/css/frontend.css',
+                ['contexts' => ['frontend', 'backend']]
             );
+            if (strpos($template, 'workflow.tpl') !== false || strpos($template, 'authorDashboard.tpl') !== false) {
+                $templateMgr->addStyleSheet(
+                    'paystackWorkflowCss',
+                    $base . '/css/workflow.css',
+                    ['contexts' => ['backend']]
+                );
+            }
+        } catch (\Throwable $e) {
+            error_log('Paystack styles failed: ' . $e->getMessage());
         }
         return false;
     }
@@ -429,44 +439,51 @@ class PaystackPaymentPlugin extends PaymethodPlugin
      */
     public function addWorkflowTab($hookName, $args)
     {
-        $smarty = $args[1];
-        $output =& $args[2];
-        $request = Application::get()->getRequest();
-        $context = $request->getContext();
-        $submission = $smarty->getTemplateVars('submission');
-        if (!$context || !$submission || !$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
-            return false;
-        }
-
-        $paymentManager = Application::getPaymentManager($context);
-        if (!method_exists($paymentManager, 'publicationEnabled') || !$paymentManager->publicationEnabled()) {
-            return false;
-        }
-
-        $status = $this->publicationFeeStatus($context, $submission);
-        $queued = $status['queued'];
-        $user = $request->getUser();
-        $canPay = false;
-        $payUrl = '';
-        if ($queued && $user) {
-            $dao = DAORegistry::getDAO('QueuedPaymentDAO');
-            $canPay = ApcOwnerCompatibility::authorizeAndRepair($queued, $user, $dao);
-            if ($canPay) {
-                $payUrl = $request->url(null, 'payment', 'pay', [$queued->getId()]);
+        try {
+            $smarty = $args[1] ?? null;
+            if (!is_object($smarty) || !method_exists($smarty, 'getTemplateVars')) {
+                return false;
             }
-        }
+            $output =& $args[2];
+            $request = Application::get()->getRequest();
+            $context = $request->getContext();
+            $submission = $smarty->getTemplateVars('submission');
+            if (!$context || !$submission || !$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
+                return false;
+            }
 
-        $amount = (float) $context->getData('publicationFee');
-        $currency = strtoupper((string) $context->getData('currency'));
-        $smarty->assign([
-            'paystackFeeStatus' => $status['status'],
-            'paystackFeeAmount' => $amount,
-            'paystackCurrency' => $currency,
-            'paystackCurrencySymbol' => self::currencySymbol($currency),
-            'paystackCanPay' => $canPay,
-            'paystackPayUrl' => $payUrl,
-        ]);
-        $output .= $smarty->fetch($this->getTemplateResource('workflowPaymentTab.tpl'));
+            $paymentManager = Application::getPaymentManager($context);
+            if (!method_exists($paymentManager, 'publicationEnabled') || !$paymentManager->publicationEnabled()) {
+                return false;
+            }
+
+            $status = $this->publicationFeeStatus($context, $submission);
+            $queued = $status['queued'];
+            $user = $request->getUser();
+            $canPay = false;
+            $payUrl = '';
+            if ($queued && $user) {
+                $dao = DAORegistry::getDAO('QueuedPaymentDAO');
+                $canPay = ApcOwnerCompatibility::authorizeAndRepair($queued, $user, $dao);
+                if ($canPay) {
+                    $payUrl = $request->url(null, 'payment', 'pay', [$queued->getId()]);
+                }
+            }
+
+            $amount = (float) $context->getData('publicationFee');
+            $currency = strtoupper((string) $context->getData('currency'));
+            $smarty->assign([
+                'paystackFeeStatus' => $status['status'],
+                'paystackFeeAmount' => $amount,
+                'paystackCurrency' => $currency,
+                'paystackCurrencySymbol' => self::currencySymbol($currency),
+                'paystackCanPay' => $canPay,
+                'paystackPayUrl' => $payUrl,
+            ]);
+            $output .= $smarty->fetch($this->getTemplateResource('workflowPaymentTab.tpl'));
+        } catch (\Throwable $e) {
+            error_log('Paystack workflow tab failed: ' . $e->getMessage());
+        }
         return false;
     }
 
