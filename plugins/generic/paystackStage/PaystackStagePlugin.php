@@ -30,6 +30,11 @@ class PaystackStagePlugin extends GenericPlugin
         $success = parent::register($category, $path, $mainContextId);
         if ($success) {
             $this->addLocaleData();
+            // getName() must stay the class name. OJS matches it to version.xml
+            // when deciding whether this plugin is enabled. A custom name never loads.
+            if (!$this->getEnabled()) {
+                $this->setEnabled(true);
+            }
             Hook::add('TemplateResource::getFilename', [$this, 'overrideAuthorDashboard']);
             Hook::add('LoadHandler', [$this, 'ensurePaymethod']);
             Hook::add('TemplateManager::display', [$this, 'ensurePaymethod']);
@@ -102,11 +107,6 @@ class PaystackStagePlugin extends GenericPlugin
             $args[0] = $path;
         }
         return false;
-    }
-
-    public function getName()
-    {
-        return 'paystackStage';
     }
 
     public function getDisplayName()

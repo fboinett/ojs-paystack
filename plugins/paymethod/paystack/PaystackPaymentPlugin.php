@@ -40,6 +40,7 @@ use PKP\linkAction\request\AjaxModal;
 use PKP\payment\QueuedPayment;
 use PKP\plugins\Hook;
 use PKP\plugins\PaymethodPlugin;
+use PKP\site\VersionCheck;
 use Slim\Http\Request as SlimRequest;
 
 class PaystackPaymentPlugin extends PaymethodPlugin
@@ -90,11 +91,51 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             Hook::add('TemplateManager::fetch', [$this, 'registerStageFilter']);
             Hook::add('LoadComponentHandler', [$this, 'loadPaymentsGrid']);
             $this->listenForEditorialDecisions();
+            $this->ensureAuthorStagePlugin();
             // Do not run DDL here. Creating tables while OJS records an
             // editorial decision can implicit-commit the MySQL transaction
             // and make "Record Decision" fail after Request Payment.
         }
         return $success;
+    }
+
+    /**
+     * The author dashboard only loads enabled generic plugins.
+     * OJS matches plugin_settings.plugin_name to the lowercased class name
+     * in version.xml. Install and enable that plugin for every journal.
+     */
+    private function ensureAuthorStagePlugin(): void
+    {
+        try {
+            $versionFile = dirname(__FILE__) . '/../../generic/paystackStage/version.xml';
+            if (!is_file($versionFile)) {
+                return;
+            }
+            $versionDao = DAORegistry::getDAO('VersionDAO');
+            $history = $versionDao->getVersionHistory('plugins.generic', 'paystackStage');
+            $installed = $history[0] ?? null;
+            $parsed = VersionCheck::parseVersionXML($versionFile);
+            $version = $parsed['version'] ?? null;
+            if ($version && (!$installed || $version->compare($installed) >= 0)) {
+                $versionDao->insertVersion($version, true);
+            }
+            $journalIds = DB::table('journals')->pluck('journal_id');
+            foreach ($journalIds as $journalId) {
+                DB::table('plugin_settings')->updateOrInsert(
+                    [
+                        'plugin_name' => 'paystackstageplugin',
+                        'context_id' => (int) $journalId,
+                        'setting_name' => 'enabled',
+                    ],
+                    [
+                        'setting_value' => '1',
+                        'setting_type' => 'bool',
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            error_log('Paystack could not enable the author stage plugin: ' . $e->getMessage());
+        }
     }
 
     /**
