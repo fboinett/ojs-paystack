@@ -1,55 +1,54 @@
-(function ($) {
-	function panelFromConfig(config) {
-		if (config.panelHtml) {
-			return config.panelHtml;
-		}
-		return '<div class="paystack-workflow"><h2>Payment</h2><p>Pending Payment</p></div>';
+(function () {
+	function $(sel, root) {
+		return (root || document).querySelector(sel);
+	}
+	function $all(sel, root) {
+		return Array.prototype.slice.call((root || document).querySelectorAll(sel));
 	}
 
 	function ensureTab(config) {
-		var $container = $('#stageTabs');
-		if (!$container.length) {
+		var container = document.getElementById('stageTabs');
+		if (!container) {
 			return false;
 		}
-		var $ul = $container.children('ul').first();
-		if (!$ul.length) {
+		var ul = container.querySelector(':scope > ul') || container.querySelector('ul');
+		if (!ul) {
 			return false;
 		}
-
-		if (!$ul.children('li.pkp_workflow_paystack').length) {
-			var $review = $ul.children('li.pkp_workflow_externalReview, li.pkp_workflow_internalReview, li.pkp_workflow_review').last();
-			var $copy = $ul.children('li.pkp_workflow_editorial');
-			var $li = $('<li/>', { 'class': 'pkp_workflow_paystack stageIdPayment initiated' });
-			$li.append($('<a/>', {
-				href: '#paystackPaymentPanel',
-				'class': 'paystack',
-				text: config.label || 'Payment'
-			}));
-			if ($copy.length) {
-				$copy.before($li);
-			} else if ($review.length) {
-				$review.after($li);
+		if (!ul.querySelector('li.pkp_workflow_paystack')) {
+			var li = document.createElement('li');
+			li.className = 'pkp_workflow_paystack stageIdPayment initiated';
+			var a = document.createElement('a');
+			a.setAttribute('href', '#paystackPaymentPanel');
+			a.className = 'paystack';
+			a.textContent = config.label || 'Payment';
+			li.appendChild(a);
+			var copy = ul.querySelector('li.pkp_workflow_editorial');
+			var review = ul.querySelector('li.pkp_workflow_externalReview, li.pkp_workflow_internalReview, li.pkp_workflow_review');
+			if (copy) {
+				ul.insertBefore(li, copy);
+			} else if (review) {
+				review.parentNode.insertBefore(li, review.nextSibling);
 			} else {
-				$ul.append($li);
+				ul.appendChild(li);
 			}
 		}
-
-		if (!$container.children('#paystackPaymentPanel').length) {
-			$container.append(
-				$('<div/>', { id: 'paystackPaymentPanel', 'class': 'paystack-workflow-panel' }).html(panelFromConfig(config))
-			);
+		if (!document.getElementById('paystackPaymentPanel')) {
+			var panel = document.createElement('div');
+			panel.id = 'paystackPaymentPanel';
+			panel.className = 'paystack-workflow-panel';
+			panel.innerHTML = config.panelHtml || '<div class="paystack-workflow"><h2>Payment</h2><p>Pending Payment</p></div>';
+			container.appendChild(panel);
 		}
-
-		if ($container.hasClass('ui-tabs')) {
-			try {
-				$container.tabs('refresh');
-			} catch (e) {}
-			if (config.autoSelect) {
-				var index = $ul.children('li').index($ul.children('li.pkp_workflow_paystack'));
-				if (index >= 0) {
-					try {
-						$container.tabs('option', 'active', index);
-					} catch (e2) {}
+		if (window.jQuery) {
+			var $tabs = window.jQuery('#stageTabs');
+			if ($tabs.hasClass('ui-tabs')) {
+				try { $tabs.tabs('refresh'); } catch (e) {}
+				if (config.autoSelect) {
+					var index = $tabs.children('ul').children('li.pkp_workflow_paystack').index();
+					if (index >= 0) {
+						try { $tabs.tabs('option', 'active', index); } catch (e2) {}
+					}
 				}
 			}
 		}
@@ -62,53 +61,52 @@
 			return;
 		}
 		var wanted = {};
-		var i;
-		for (i = 0; i < ids.length; i++) {
-			wanted[String(ids[i])] = true;
-		}
-		$('a[href]').each(function () {
-			var href = String($(this).attr('href') || '');
-			var match = href.match(/(?:workflow\/access|authorDashboard\/submission)\/(\d+)/);
-			if (!match) {
-				match = href.match(/[?&]submissionId=(\d+)/);
-			}
+		ids.forEach(function (id) { wanted[String(id)] = true; });
+		$all('a[href]').forEach(function (a) {
+			var href = a.getAttribute('href') || '';
+			var match = href.match(/(?:workflow\/access|authorDashboard\/submission)\/(\d+)/) || href.match(/[?&]submissionId=(\d+)/);
 			if (!match || !wanted[match[1]]) {
 				return;
 			}
-			var $item = $(this).closest('.listPanel__item, .pkpListPanel__item, li');
-			if (!$item.length) {
+			var item = a.closest('.listPanel__item, .pkpListPanel__item, li');
+			if (!item) {
 				return;
 			}
-			$item.find('button, span, a').each(function () {
-				if (this.children.length) {
+			$all('button, span, a', item).forEach(function (el) {
+				if (el.children.length) {
 					return;
 				}
-				var text = $.trim($(this).text());
+				var text = (el.textContent || '').trim();
 				if (text === 'Copyediting' || text === 'Review' || text === 'Editorial') {
-					$(this).text('Pending Payment');
+					el.textContent = 'Pending Payment';
 				}
 			});
 		});
 	}
 
 	function boot() {
-		var config = window.pkpPaystackStage || null;
 		relabelQueue();
+		var config = window.pkpPaystackStage || null;
 		if (!config) {
-			return;
-		}
-		if (ensureTab(config)) {
 			return;
 		}
 		var tries = 0;
 		var timer = setInterval(function () {
 			tries += 1;
 			relabelQueue();
-			if (ensureTab(config) || tries > 60) {
+			if (ensureTab(config) && tries > 2) {
 				clearInterval(timer);
 			}
-		}, 200);
+			if (tries > 80) {
+				clearInterval(timer);
+			}
+		}, 250);
+		ensureTab(config);
 	}
 
-	$(boot);
-})(jQuery);
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', boot);
+	} else {
+		boot();
+	}
+})();

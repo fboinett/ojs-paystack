@@ -539,39 +539,55 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             return;
         }
         $submission = $templateMgr->getTemplateVars('submission');
-        if ($submission) {
-            $this->holdIfPaymentPending($submission, $context);
-        } else {
-            foreach ($this->pendingPaymentSubmissionIds((int) $context->getId()) as $submissionId) {
-                $pending = Repo::submission()->get($submissionId);
-                if ($pending) {
-                    $this->holdIfPaymentPending($pending, $context);
+        try {
+            if ($submission) {
+                $this->holdIfPaymentPending($submission, $context);
+            } else {
+                foreach ($this->pendingPaymentSubmissionIds((int) $context->getId()) as $submissionId) {
+                    $pending = Repo::submission()->get($submissionId);
+                    if ($pending) {
+                        $this->holdIfPaymentPending($pending, $context);
+                    }
                 }
             }
+        } catch (\Throwable $e) {
+            error_log('Paystack hold failed: ' . $e->getMessage());
         }
 
-        $pendingIds = $this->pendingPaymentSubmissionIds((int) $context->getId());
+        $pendingIds = [];
+        try {
+            $pendingIds = $this->pendingPaymentSubmissionIds((int) $context->getId());
+        } catch (\Throwable $e) {
+            error_log('Paystack pending ids failed: ' . $e->getMessage());
+        }
         $flags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+        $config = null;
         if ($submission) {
             $built = $this->paymentStageMarkup($request, $context, $submission);
             if ($built && !empty($built['config'])) {
-                $templateMgr->addHeader(
-                    'paystackStageData',
-                    '<script>window.pkpPaystackStage=' . json_encode($built['config'], $flags) . ';</script>',
-                    ['contexts' => ['backend', 'frontend']]
-                );
+                $config = $built['config'];
             }
         }
-        $templateMgr->addHeader(
+        $scriptArgs = [
+            'contexts' => ['backend'],
+            'priority' => TemplateManager::STYLE_SEQUENCE_LAST,
+        ];
+        if ($config) {
+            $templateMgr->addJavaScript(
+                'paystackStageData',
+                'window.pkpPaystackStage=' . json_encode($config, $flags) . ';',
+                $scriptArgs + ['inline' => true]
+            );
+        }
+        $templateMgr->addJavaScript(
             'paystackPendingIds',
-            '<script>window.pkpPaystackPendingIds=' . json_encode(array_values($pendingIds)) . ';</script>',
-            ['contexts' => ['backend', 'frontend']]
+            'window.pkpPaystackPendingIds=' . json_encode(array_values($pendingIds)) . ';',
+            $scriptArgs + ['inline' => true]
         );
-        $scriptUrl = $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=141';
-        $templateMgr->addHeader(
-            'paystackStageJs',
-            '<script src="' . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8') . '"></script>',
-            ['contexts' => ['backend', 'frontend']]
+        $templateMgr->addJavaScript(
+            'paystackStage',
+            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=142',
+            $scriptArgs
         );
     }
 

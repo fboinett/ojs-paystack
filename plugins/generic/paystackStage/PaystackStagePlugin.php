@@ -52,11 +52,15 @@ class PaystackStagePlugin extends GenericPlugin
             $this->paymethodLoaded = true;
             PluginRegistry::loadCategory('paymethod', true);
         }
-        if ($hookName === 'TemplateManager::display') {
-            $paystack = PluginRegistry::getPlugin('paymethod', 'PaystackPayment');
-            if ($paystack && method_exists($paystack, 'loadFrontendStyles')) {
-                $paystack->loadFrontendStyles($hookName, $args);
-            }
+        $paystack = PluginRegistry::getPlugin('paymethod', 'PaystackPayment');
+        if (!$paystack) {
+            return false;
+        }
+        if (method_exists($paystack, 'registerStageFilter')) {
+            $paystack->registerStageFilter($hookName, $args);
+        }
+        if ($hookName === 'TemplateManager::display' && method_exists($paystack, 'loadFrontendStyles')) {
+            $paystack->loadFrontendStyles($hookName, $args);
         }
         return false;
     }
