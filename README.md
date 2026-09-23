@@ -68,7 +68,8 @@ OJS charges the APC when the editor accepts the submission after review.
 1. Complete peer review (or **Accept and Skip Review**).
 2. Choose **Request publication fee** (do not waive unless the fee should be skipped).
 3. Record the editorial decision.
-4. The author opens the submission → **Payment** stage (after Review, before Copyediting) → status **Awaiting Payment** → **Pay with Paystack**.
+4. The author opens the submission → **Payment** stage (after Review, before Copyediting). Status is **Pending Payment**. Authors see **Pay with Paystack**.
+5. The submission stays out of **Copyediting** until that payment succeeds. The submissions list shows **Pending Payment** instead of Copyediting.
 
 After a successful payment the author is returned to their **submissions dashboard**.
 

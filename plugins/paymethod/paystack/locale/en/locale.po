@@ -222,7 +222,7 @@ msgid "plugins.paymethod.paystack.workflow.tab"
 msgstr "Payment"
 
 msgid "plugins.paymethod.paystack.workflow.heading"
-msgstr "Publication fee"
+msgstr "Payment"
 
 msgid "plugins.paymethod.paystack.workflow.intro"
 msgstr "Pay the article processing charge after peer review and before copyediting and proofreading."
@@ -237,7 +237,7 @@ msgid "plugins.paymethod.paystack.workflow.status.waived"
 msgstr "Waived"
 
 msgid "plugins.paymethod.paystack.workflow.status.due"
-msgstr "Awaiting Payment"
+msgstr "Pending Payment"
 
 msgid "plugins.paymethod.paystack.workflow.status.waiting"
 msgstr "Waiting for the editor to request payment"
@@ -246,7 +246,7 @@ msgid "plugins.paymethod.paystack.workflow.payHelp"
 msgstr "Pay now with Paystack. You will return to this submission after the payment is confirmed."
 
 msgid "plugins.paymethod.paystack.workflow.editorRequested"
-msgstr "The editor has requested this fee. The assigned author should open this tab and click Pay with Paystack."
+msgstr "Pending payment. The assigned author should open this submission and click Pay with Paystack."
 
 msgid "plugins.paymethod.paystack.workflow.waitingHelp"
 msgstr "When the editor accepts the submission after review, they should choose “Request publication fee”. This tab will then show a Pay now button for the author."

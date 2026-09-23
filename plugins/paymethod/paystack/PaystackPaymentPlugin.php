@@ -47,6 +47,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
     public const SUPPORTED_CURRENCIES = ['NGN', 'USD', 'GHS', 'ZAR', 'KES', 'XOF'];
     public const SECRET_MASK = '********';
 
+    /** @var bool */
+    private $outputFilterReady = false;
+
     /**
      * @copydoc Plugin::getName()
      */
@@ -84,7 +87,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             Hook::add('Form::config::before', [$this, 'addSettings']);
             Hook::add('Mailer::Mailables', [$this, 'addMailable']);
             Hook::add('TemplateManager::display', [$this, 'loadFrontendStyles']);
+            Hook::add('TemplateManager::fetch', [$this, 'registerStageFilter']);
             Hook::add('LoadComponentHandler', [$this, 'loadPaymentsGrid']);
+            $this->listenForEditorialDecisions();
             // Do not run DDL here. Creating tables while OJS records an
             // editorial decision can implicit-commit the MySQL transaction
             // and make "Record Decision" fail after Request Payment.
@@ -362,7 +367,10 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                 && strpos($template, 'paymentReceipt.tpl') === false
                 && strpos($template, 'workflow.tpl') === false
                 && strpos($template, 'authorDashboard.tpl') === false
+                && strpos($template, 'dashboard/index.tpl') === false
+                && strpos($template, 'submissionProgressBar.tpl') === false
             ) {
+                $this->registerStageFilter($hookName, $args);
                 return false;
             }
             $request = Application::get()->getRequest();
@@ -372,13 +380,19 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                 $base . '/css/frontend.css',
                 ['contexts' => ['frontend', 'backend']]
             );
-            if (strpos($template, 'workflow.tpl') !== false || strpos($template, 'authorDashboard.tpl') !== false) {
+            $this->registerStageFilter($hookName, $args);
+            if (
+                strpos($template, 'workflow.tpl') !== false
+                || strpos($template, 'authorDashboard.tpl') !== false
+                || strpos($template, 'dashboard/index.tpl') !== false
+                || strpos($template, 'submissionProgressBar.tpl') !== false
+            ) {
                 $templateMgr->addStyleSheet(
                     'paystackWorkflowCss',
                     $base . '/css/workflow.css',
                     ['contexts' => ['backend']]
                 );
-                $this->setupStageTab($templateMgr, $request);
+                $this->preparePaymentStage($templateMgr, $request);
             }
         } catch (\Throwable $e) {
             error_log('Paystack styles failed: ' . $e->getMessage());
@@ -455,18 +469,114 @@ class PaystackPaymentPlugin extends PaymethodPlugin
     }
 
     /**
-     * Insert a Payment stage between Review and Copyediting.
+     * Register the output filter once, before Smarty renders stage tabs.
      */
-    private function setupStageTab($templateMgr, Request $request): void
+    public function registerStageFilter($hookName, $args): bool
+    {
+        $templateMgr = $args[0] ?? null;
+        if ($this->outputFilterReady || !is_object($templateMgr) || !method_exists($templateMgr, 'registerFilter')) {
+            return false;
+        }
+        $templateMgr->registerFilter('output', [$this, 'injectPaymentStage']);
+        $this->outputFilterReady = true;
+        return false;
+    }
+
+    /**
+     * Insert Payment into the stage bar before jQuery builds the tabs.
+     *
+     * @param string $output
+     * @param mixed $template
+     * @return string
+     */
+    public function injectPaymentStage($output, $template = null)
+    {
+        if (!is_string($output) || strpos($output, 'id="stageTabs"') === false || strpos($output, 'pkp_workflow_paystack') !== false) {
+            return $output;
+        }
+        try {
+            $request = Application::get()->getRequest();
+            $templateMgr = TemplateManager::getManager($request);
+            $submission = $templateMgr->getTemplateVars('submission');
+            $context = $request->getContext();
+            if (!$submission || !$context) {
+                return $output;
+            }
+            $built = $this->paymentStageMarkup($request, $context, $submission);
+            if ($built === null) {
+                return $output;
+            }
+            $count = 0;
+            $output = preg_replace(
+                '/(<li[^>]*class="[^"]*pkp_workflow_editorial)/',
+                $built['li'] . '$1',
+                $output,
+                1,
+                $count
+            );
+            if (!$count) {
+                $output = preg_replace('/(<\/ul>)/', $built['li'] . '$1', $output, 1);
+            }
+            $output = preg_replace(
+                '/(<div id="stageTabs"[^>]*>\s*<ul>.*?<\/ul>)/s',
+                '$1' . $built['panel'],
+                $output,
+                1
+            );
+        } catch (\Throwable $e) {
+            error_log('Paystack stage injection failed: ' . $e->getMessage());
+        }
+        return $output;
+    }
+
+    /**
+     * Queue data for the dashboard badge and keep unpaid articles out of copyediting.
+     */
+    private function preparePaymentStage($templateMgr, Request $request): void
     {
         $context = $request->getContext();
-        $submission = $templateMgr->getTemplateVars('submission');
-        if (!$context || !$submission || !$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
+        if (!$context || !$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
             return;
+        }
+        $submission = $templateMgr->getTemplateVars('submission');
+        if ($submission) {
+            $this->holdIfPaymentPending($submission, $context);
+        } else {
+            foreach ($this->pendingPaymentSubmissionIds((int) $context->getId()) as $submissionId) {
+                $pending = Repo::submission()->get($submissionId);
+                if ($pending) {
+                    $this->holdIfPaymentPending($pending, $context);
+                }
+            }
+        }
+
+        $pendingIds = $this->pendingPaymentSubmissionIds((int) $context->getId());
+        $templateMgr->addHeader(
+            'paystackPendingIds',
+            '<script>window.pkpPaystackPendingIds=' . json_encode(array_values($pendingIds)) . ';</script>',
+            ['contexts' => ['backend']]
+        );
+        $scriptUrl = $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js';
+        if (method_exists($templateMgr, 'addJavaScript')) {
+            $templateMgr->addJavaScript(
+                'paystackStage',
+                $scriptUrl,
+                ['contexts' => ['backend']]
+            );
+        }
+    }
+
+    /**
+     * @return array{li:string,panel:string}|null
+     */
+    private function paymentStageMarkup(Request $request, $context, $submission): ?array
+    {
+        if (!$this->getEnabled($context->getId()) || !$this->isConfigured($context)) {
+            return null;
         }
         $paymentManager = Application::getPaymentManager($context);
         if (!method_exists($paymentManager, 'publicationEnabled') || !$paymentManager->publicationEnabled()) {
-            return;
+            return null;
         }
 
         $status = $this->publicationFeeStatus($context, $submission);
@@ -484,66 +594,124 @@ class PaystackPaymentPlugin extends PaymethodPlugin
 
         $amount = (float) $context->getData('publicationFee');
         $currency = strtoupper((string) $context->getData('currency'));
-        $templateMgr->assign([
-            'paystackFeeStatus' => $status['status'],
-            'paystackFeeAmount' => $amount,
-            'paystackCurrency' => $currency,
-            'paystackCurrencySymbol' => self::currencySymbol($currency),
-            'paystackCanPay' => $canPay,
-            'paystackPayUrl' => $payUrl,
-        ]);
-        $panelHtml = $templateMgr->fetch($this->getTemplateResource('workflowStagePanel.tpl'));
-
-        $statusLabels = [
+        $amountText = self::currencySymbol($currency) . number_format($amount, 2) . ' ' . $currency;
+        $statusLabel = [
             'due' => __('plugins.paymethod.paystack.workflow.status.due'),
             'paid' => __('plugins.paymethod.paystack.workflow.status.paid'),
             'waived' => __('plugins.paymethod.paystack.workflow.status.waived'),
             'waiting' => __('plugins.paymethod.paystack.workflow.status.waiting'),
-        ];
-        $helpKeys = [
-            'due' => $canPay
-                ? 'plugins.paymethod.paystack.workflow.payHelp'
-                : 'plugins.paymethod.paystack.workflow.editorRequested',
-            'paid' => 'plugins.paymethod.paystack.workflow.paidHelp',
-            'waiting' => 'plugins.paymethod.paystack.workflow.waitingHelp',
-            'waived' => 'plugins.paymethod.paystack.workflow.status.waived',
-        ];
+        ][$status['status']] ?? $status['status'];
 
-        $payload = [
-            'label' => __('plugins.paymethod.paystack.workflow.tab'),
-            'heading' => __('plugins.paymethod.paystack.workflow.heading'),
-            'status' => $status['status'],
-            'statusLabel' => $statusLabels[$status['status']] ?? $status['status'],
-            'statusTitle' => __('plugins.paymethod.paystack.paymentHistory.status'),
-            'feeLabel' => __('plugins.paymethod.paystack.workflow.fee'),
-            'amountFormatted' => self::currencySymbol($currency) . number_format($amount, 2) . ' ' . $currency,
-            'canPay' => $canPay && $status['status'] === 'due',
-            'payUrl' => $payUrl,
-            'payLabel' => __('plugins.paymethod.paystack.paymentDetails.payNow'),
-            'help' => isset($helpKeys[$status['status']]) ? __($helpKeys[$status['status']]) : '',
-            'autoSelect' => $status['status'] === 'due',
-            'panelHtml' => $panelHtml,
-        ];
-
-        $templateMgr->addHeader(
-            'paystackStageData',
-            '<script>window.pkpPaystackStage=' . json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) . ';</script>',
-            ['contexts' => ['backend']]
-        );
-        $scriptUrl = $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js';
-        if (method_exists($templateMgr, 'addJavaScript')) {
-            $templateMgr->addJavaScript(
-                'paystackStage',
-                $scriptUrl,
-                ['contexts' => ['backend']]
-            );
-        } else {
-            $templateMgr->addHeader(
-                'paystackStageJs',
-                '<script src="' . htmlspecialchars($scriptUrl, ENT_QUOTES) . '"></script>',
-                ['contexts' => ['backend']]
-            );
+        $panel = '<div id="paystackPaymentPanel" class="paystack-workflow-panel"><div class="paystack-workflow">';
+        $panel .= '<h2>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8') . '</h2>';
+        $panel .= '<div class="paystack-workflow__status paystack-workflow__status--' . htmlspecialchars($status['status'], ENT_QUOTES, 'UTF-8') . '">';
+        $panel .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.fee'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
+        $panel .= htmlspecialchars($amountText, ENT_QUOTES, 'UTF-8') . '</p>';
+        $panel .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.paymentHistory.status'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
+        $panel .= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') . '</p></div>';
+        if ($status['status'] === 'due' && $canPay) {
+            $panel .= '<p><a class="pkp_button" href="' . htmlspecialchars($payUrl, ENT_QUOTES, 'UTF-8') . '">';
+            $panel .= htmlspecialchars(__('plugins.paymethod.paystack.paymentDetails.payNow'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+        } elseif ($status['status'] === 'due') {
+            $panel .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.editorRequested'), ENT_QUOTES, 'UTF-8') . '</p>';
+        } elseif ($status['status'] === 'paid') {
+            $panel .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.paidHelp'), ENT_QUOTES, 'UTF-8') . '</p>';
         }
+        $panel .= '</div></div>';
+
+        $li = '<li class="pkp_workflow_paystack stageIdPayment' . ($status['status'] === 'due' ? ' initiated' : ' initiated') . '">';
+        $li .= '<a href="#paystackPaymentPanel">' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8') . '</a></li>';
+
+        if ($status['status'] === 'due') {
+            $panel .= '<script>window.pkpPaystackStage={autoSelect:true};</script>';
+        }
+
+        return ['li' => $li, 'panel' => $panel];
+    }
+
+    private function listenForEditorialDecisions(): void
+    {
+        if (!class_exists(\Illuminate\Support\Facades\Event::class)) {
+            return;
+        }
+        \Illuminate\Support\Facades\Event::listen(
+            \PKP\observers\events\DecisionAdded::class,
+            function ($event) {
+                try {
+                    if (!isset($event->submission, $event->context)) {
+                        return;
+                    }
+                    $this->holdIfPaymentPending($event->submission, $event->context);
+                } catch (\Throwable $e) {
+                    error_log('Paystack decision hold failed: ' . $e->getMessage());
+                }
+            }
+        );
+    }
+
+    private function holdIfPaymentPending($submission, $context): void
+    {
+        if (!$submission || !$context || !$this->getEnabled((int) $context->getId())) {
+            return;
+        }
+        $status = $this->publicationFeeStatus($context, $submission);
+        if (($status['status'] ?? '') !== 'due') {
+            return;
+        }
+        if ((int) $submission->getData('stageId') !== WORKFLOW_STAGE_ID_EDITING) {
+            return;
+        }
+        $submission->setData('stageId', WORKFLOW_STAGE_ID_EXTERNAL_REVIEW);
+        Repo::submission()->dao->update($submission);
+    }
+
+    private function promoteToCopyeditingAfterPayment(QueuedPayment $queuedPayment): void
+    {
+        if ((int) $queuedPayment->getType() !== OJSPaymentManager::PAYMENT_TYPE_PUBLICATION) {
+            return;
+        }
+        $submission = Repo::submission()->get((int) $queuedPayment->getAssocId());
+        if (!$submission) {
+            return;
+        }
+        $stageId = (int) $submission->getData('stageId');
+        if (in_array($stageId, [WORKFLOW_STAGE_ID_SUBMISSION, WORKFLOW_STAGE_ID_INTERNAL_REVIEW, WORKFLOW_STAGE_ID_EXTERNAL_REVIEW], true)) {
+            $submission->setData('stageId', WORKFLOW_STAGE_ID_EDITING);
+            Repo::submission()->dao->update($submission);
+        }
+    }
+
+    /**
+     * @return int[]
+     */
+    private function pendingPaymentSubmissionIds(int $contextId): array
+    {
+        $paid = DB::table('completed_payments')
+            ->where('context_id', $contextId)
+            ->where('payment_type', OJSPaymentManager::PAYMENT_TYPE_PUBLICATION)
+            ->pluck('assoc_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $ids = [];
+        $blobs = DB::table('queued_payments')->pluck('payment_data');
+        foreach ($blobs as $blob) {
+            $payment = @unserialize((string) $blob);
+            if (!is_object($payment) || !method_exists($payment, 'getType')) {
+                continue;
+            }
+            if ((int) $payment->getType() !== OJSPaymentManager::PAYMENT_TYPE_PUBLICATION) {
+                continue;
+            }
+            if ((int) $payment->getContextId() !== $contextId) {
+                continue;
+            }
+            $submissionId = (int) $payment->getAssocId();
+            if ($submissionId > 0 && !in_array($submissionId, $paid, true)) {
+                $ids[$submissionId] = $submissionId;
+            }
+        }
+        return array_values($ids);
     }
 
     /**
@@ -983,6 +1151,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
 
         $paymentManager = Application::getPaymentManager($context);
         $paymentManager->fulfillQueuedPayment($request, $queuedPayment, $this->getName());
+        $this->promoteToCopyeditingAfterPayment($queuedPayment);
 
         $completedId = null;
         $completedPaymentDao = DAORegistry::getDAO('OJSCompletedPaymentDAO');

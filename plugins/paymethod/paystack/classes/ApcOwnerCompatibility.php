@@ -43,17 +43,6 @@ class ApcOwnerCompatibility
             return false;
         }
 
-        $primaryEmail = self::primaryAuthorEmail($submission);
-        if ($primaryEmail !== null && $primaryEmail !== '') {
-            if (strcasecmp((string) $currentUser->getEmail(), $primaryEmail) !== 0 && count($assignedAuthorIds) > 1) {
-                // Prefer the primary contact author when several authors are assigned.
-                if ($ownerUserId === $currentUserId) {
-                    return true;
-                }
-                return false;
-            }
-        }
-
         if ($ownerUserId !== $currentUserId) {
             $queuedPayment->setUserId($currentUserId);
             if (method_exists($queuedPaymentDao, 'updateObject')) {
@@ -91,6 +80,23 @@ class ApcOwnerCompatibility
                 }
             }
         }
+
+        $publication = $submission->getCurrentPublication();
+        if ($publication && method_exists($publication, 'getAuthors')) {
+            foreach ((array) $publication->getAuthors() as $author) {
+                if (method_exists($author, 'getUserId') && $author->getUserId()) {
+                    $ids[] = (int) $author->getUserId();
+                }
+                $email = method_exists($author, 'getEmail') ? (string) $author->getEmail() : '';
+                if ($email !== '') {
+                    $user = Repo::user()->getByEmail($email);
+                    if ($user) {
+                        $ids[] = (int) $user->getId();
+                    }
+                }
+            }
+        }
+
         return array_values(array_unique(array_filter($ids)));
     }
 

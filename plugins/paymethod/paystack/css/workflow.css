@@ -1,18 +1,24 @@
 .paystack-workflow {
 	max-width: 40rem;
-	padding: 1.25rem 0 2rem;
+	padding: 0.5rem 0 1.5rem;
+}
+
+.paystack-workflow h2 {
+	margin: 0 0 1rem;
+	font-size: 1.25rem;
 }
 
 .paystack-workflow-panel {
 	padding: 1rem 0 2rem;
+	clear: both;
 }
 
 .paystack-workflow__status {
 	border: 1px solid #d5dbe3;
-	border-radius: 8px;
-	padding: 1rem 1.25rem;
-	margin: 1rem 0;
-	background: #f8fafc;
+	border-radius: 4px;
+	padding: 0.85rem 1rem;
+	margin: 0 0 1rem;
+	background: #fff;
 }
 
 .paystack-workflow__status--due {
@@ -25,33 +31,17 @@
 	background: #edf8f1;
 }
 
-.paystack-workflow__status--waived {
-	border-color: #c5d0dc;
-}
-
+.paystack-workflow .pkp_button,
 .paystack-workflow .pkpButton {
 	display: inline-block;
 	background: #006798;
-	color: #fff;
-	padding: 0.55rem 1.1rem;
-	border-radius: 6px;
+	color: #fff !important;
+	padding: 0.45rem 0.9rem;
+	border-radius: 3px;
 	text-decoration: none;
 	font-weight: 600;
 }
 
-#stageTabs li.pkp_workflow_paystack > a {
-	position: relative;
-}
-
-#stageTabs li.paystack-stage--awaiting > a {
-	font-weight: 700;
-}
-
-.paystack-stage-badge {
-	display: block;
-	font-size: 0.7rem;
-	font-weight: 600;
-	color: #8a6d00;
-	text-transform: none;
-	letter-spacing: 0;
+#stageTabs > ul > li.pkp_workflow_paystack > a {
+	white-space: nowrap;
 }
