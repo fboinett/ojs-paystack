@@ -506,17 +506,32 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             if ($built === null) {
                 return $output;
             }
-            $count = 0;
-            $output = preg_replace(
-                '/(<li[^>]*class="[^"]*pkp_workflow_editorial)/',
-                $built['li'] . '$1',
-                $output,
-                1,
-                $count
-            );
-            if (!$count) {
-                $output = preg_replace('/(<\/ul>)/', $built['li'] . '$1', $output, 1);
-            } else {
+            $inserted = false;
+            $marker = 'pkp_workflow_editorial';
+            $markerPos = strpos($output, $marker);
+            if ($markerPos !== false) {
+                $liStart = strrpos(substr($output, 0, $markerPos), '<li');
+                if ($liStart !== false) {
+                    $output = substr($output, 0, $liStart) . $built['li'] . substr($output, $liStart);
+                    $inserted = true;
+                }
+            }
+            if (!$inserted) {
+                $ulClose = strpos($output, '</ul>');
+                if ($ulClose !== false) {
+                    $output = substr($output, 0, $ulClose) . $built['li'] . substr($output, $ulClose);
+                    $inserted = true;
+                }
+            }
+            $tabsPos = strpos($output, 'id="stageTabs"');
+            if ($tabsPos !== false) {
+                $ulEnd = strpos($output, '</ul>', $tabsPos);
+                if ($ulEnd !== false) {
+                    $ulEnd += strlen('</ul>');
+                    $output = substr($output, 0, $ulEnd) . $built['panel'] . substr($output, $ulEnd);
+                }
+            }
+            if ($inserted) {
                 $stageId = (int) $submission->getData('stageId');
                 if ($stageId >= WORKFLOW_STAGE_ID_EDITING) {
                     $output = preg_replace_callback(
@@ -529,12 +544,6 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                     );
                 }
             }
-            $output = preg_replace(
-                '/(<div id="stageTabs"[^>]*>\s*<ul>.*?<\/ul>)/s',
-                '$1' . $built['panel'],
-                $output,
-                1
-            );
         } catch (\Throwable $e) {
             error_log('Paystack stage injection failed: ' . $e->getMessage());
         }

@@ -24,6 +24,9 @@ class PaystackStagePlugin extends GenericPlugin
     /** @var bool */
     private $paymethodLoaded = false;
 
+    /** @var bool */
+    private $capturingAuthorDashboard = false;
+
     public function register($category, $path, $mainContextId = null)
     {
         $success = parent::register($category, $path, $mainContextId);
@@ -59,7 +62,40 @@ class PaystackStagePlugin extends GenericPlugin
         if (method_exists($paystack, 'registerStageFilter')) {
             $paystack->registerStageFilter($hookName, $args);
         }
-        if ($hookName === 'TemplateManager::display' && method_exists($paystack, 'loadFrontendStyles')) {
+        if ($hookName !== 'TemplateManager::display') {
+            return false;
+        }
+        $template = (string) ($args[1] ?? '');
+        if (
+            strpos($template, 'authorDashboard.tpl') !== false
+            && !$this->capturingAuthorDashboard
+            && isset($args[0])
+            && is_object($args[0])
+        ) {
+            $this->capturingAuthorDashboard = true;
+            try {
+                ob_start();
+                $args[0]->display($template);
+                $html = ob_get_clean();
+            } catch (\Throwable $e) {
+                if (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                $this->capturingAuthorDashboard = false;
+                error_log('Paystack author stage failed: ' . $e->getMessage());
+                return false;
+            }
+            $this->capturingAuthorDashboard = false;
+            if (!is_string($html) || strpos($html, 'id="stageTabs"') === false) {
+                return false;
+            }
+            if (method_exists($paystack, 'injectPaymentStage')) {
+                $html = $paystack->injectPaymentStage($html);
+            }
+            $args[2] = $html;
+            return true;
+        }
+        if (method_exists($paystack, 'loadFrontendStyles')) {
             $paystack->loadFrontendStyles($hookName, $args);
         }
         return false;
