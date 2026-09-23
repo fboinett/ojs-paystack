@@ -83,7 +83,7 @@ class PaystackStagePlugin extends GenericPlugin
             $request = Application::get()->getRequest();
             $templateMgr->addJavaScript(
                 'paystackAuthorStage',
-                $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/authorStage.js?v=152',
+                $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/authorStage.js?v=155',
                 [
                     'contexts' => ['backend'],
                     'priority' => TemplateManager::STYLE_SEQUENCE_LAST,

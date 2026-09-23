@@ -62,7 +62,7 @@
 						{foreach from=$workflowStages item=stage}
 							{if $stage.path == 'editorial'}
 								<li class="pkp_workflow_paystack stageIdPayment">
-									<a href="{$paystackStageUrl|escape}">{translate key="plugins.paymethod.paystack.workflow.tab"}</a>
+									<a class="paystack" href="{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="paystack.stage.PaystackStageTabHandler" op="fetch" submissionId=$submission->getId() escape=false}">{translate key="plugins.paymethod.paystack.workflow.tab"}</a>
 								</li>
 							{/if}
 							<li class="pkp_workflow_{$stage.path} stageId{$stage.id}{if $stage.statusKey} initiated{/if}">
@@ -77,6 +77,29 @@
 							</li>
 						{/foreach}
 					</ul>
+				</div>
+				<div id="paystackPaymentSource" hidden>
+					<div class="paystack-workflow">
+						<h2>{translate key="plugins.paymethod.paystack.workflow.tab"}</h2>
+						<div class="paystack-workflow__status paystack-workflow__status--{$paystackFeeStatus|default:'waiting'|escape}">
+							<p>
+								<strong>{translate key="plugins.paymethod.paystack.workflow.fee"}:</strong>
+								{$paystackAmountText|default:''|escape}
+							</p>
+							<p>
+								<strong>{translate key="common.status"}:</strong>
+								{$paystackStatusLabel|default:'Pending Payment'|escape}
+							</p>
+						</div>
+						{if $paystackCanPay && $paystackPayUrl}
+							<p>
+								<a class="pkp_button" href="{$paystackPayUrl|escape}">{translate key="plugins.paymethod.paystack.paymentDetails.payNow"}</a>
+							</p>
+						{/if}
+						{if $paystackHelp}
+							<p>{$paystackHelp|escape}</p>
+						{/if}
+					</div>
 				</div>
 			</tab>
 			<tab id="publication" label="{translate key="submission.publication"}">

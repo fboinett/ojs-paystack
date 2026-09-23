@@ -1,52 +1,49 @@
 (function () {
-	function ensure() {
-		var container = document.getElementById('stageTabs');
-		if (!container) {
-			return false;
-		}
-		var ul = container.querySelector('ul');
-		if (!ul) {
-			return false;
-		}
-		if (!ul.querySelector('li.pkp_workflow_paystack')) {
-			var li = document.createElement('li');
-			li.className = 'pkp_workflow_paystack stageIdPayment';
-			var a = document.createElement('a');
-			var config = window.pkpPaystackStage || {};
-			a.setAttribute('href', config.fetchUrl || '#paystackPaymentPanel');
-			a.textContent = config.label || 'Payment';
-			li.appendChild(a);
-			var copy = ul.querySelector('li.pkp_workflow_editorial');
-			if (copy) {
-				ul.insertBefore(li, copy);
-			} else {
-				ul.appendChild(li);
-			}
-		}
-		var stale = document.getElementById('paystackPaymentPanel');
-		if (stale && stale.parentNode) {
-			stale.parentNode.removeChild(stale);
-		}
-		if (window.jQuery) {
-			var $tabs = window.jQuery('#stageTabs');
-			if ($tabs.hasClass('ui-tabs')) {
-				try { $tabs.tabs('refresh'); } catch (e) {}
-			}
-		}
-		return true;
+	function sourceHtml() {
+		var source = document.getElementById('paystackPaymentSource');
+		return source ? source.innerHTML : '';
 	}
 
-	var tries = 0;
-	var timer = setInterval(function () {
-		tries += 1;
-		if (ensure() && tries > 2) {
-			clearInterval(timer);
+	function paymentPanel() {
+		var link = document.querySelector('#stageTabs li.pkp_workflow_paystack a');
+		if (!link) {
+			return null;
 		}
-		if (tries > 80) {
-			clearInterval(timer);
+		var panelId = link.getAttribute('aria-controls');
+		return panelId ? document.getElementById(panelId) : null;
+	}
+
+	function fillIfEmpty() {
+		var panel = paymentPanel();
+		var html = sourceHtml();
+		if (!panel || !html) {
+			return;
 		}
-	}, 250);
-	if (document.readyState !== 'loading') {
-		ensure();
+		if ((panel.textContent || '').replace(/\s+/g, '') !== '') {
+			return;
+		}
+		panel.innerHTML = html;
+	}
+
+	function boot() {
+		fillIfEmpty();
+		if (!window.jQuery) {
+			return;
+		}
+		var $tabs = window.jQuery('#stageTabs');
+		$tabs.on('tabsactivate tabsload', function () {
+			window.setTimeout(fillIfEmpty, 50);
+			window.setTimeout(fillIfEmpty, 400);
+		});
+		window.jQuery(document).on('click', '#stageTabs li.pkp_workflow_paystack a', function () {
+			window.setTimeout(fillIfEmpty, 50);
+			window.setTimeout(fillIfEmpty, 600);
+		});
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', boot);
+	} else {
+		boot();
 	}
 })();
