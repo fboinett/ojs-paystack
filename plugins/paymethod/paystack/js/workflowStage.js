@@ -34,13 +34,19 @@
 			}
 		} else if (config.fetchUrl) {
 			var existing = ul.querySelector('li.pkp_workflow_paystack a');
-			if (existing && existing.getAttribute('href') !== config.fetchUrl) {
+			var keptPanel = document.getElementById('paystackPaymentPanel');
+			var keepLocal = keptPanel && (keptPanel.textContent || '').replace(/\s+/g, '') !== '';
+			if (existing && !keepLocal && existing.getAttribute('href') !== config.fetchUrl) {
 				existing.setAttribute('href', config.fetchUrl);
 			}
 		}
-		var stale = document.getElementById('paystackPaymentPanel');
-		if (stale && stale.parentNode) {
-			stale.parentNode.removeChild(stale);
+		var existingPanel = document.getElementById('paystackPaymentPanel');
+		if (existingPanel && (existingPanel.textContent || '').replace(/\s+/g, '') !== '') {
+			var hashLink = ul.querySelector('li.pkp_workflow_paystack a');
+			if (hashLink && hashLink.getAttribute('href') !== '#paystackPaymentPanel') {
+				hashLink.setAttribute('href', '#paystackPaymentPanel');
+			}
+			return true;
 		}
 		if (window.jQuery && !ul.querySelector('li.pkp_workflow_paystack[data-paystack-ready]')) {
 			var created = ul.querySelector('li.pkp_workflow_paystack');

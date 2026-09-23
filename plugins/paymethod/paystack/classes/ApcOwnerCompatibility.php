@@ -45,16 +45,35 @@ class ApcOwnerCompatibility
 
         if ($ownerUserId !== $currentUserId) {
             $queuedPayment->setUserId($currentUserId);
-            if (method_exists($queuedPaymentDao, 'updateObject')) {
-                try {
+            try {
+                if ($queuedPaymentDao && method_exists($queuedPaymentDao, 'updateObject')) {
                     $queuedPaymentDao->updateObject($queuedPayment->getId(), $queuedPayment);
-                } catch (\Throwable $e) {
-                    $queuedPaymentDao->updateObject($queuedPayment);
                 }
+            } catch (\Throwable $e) {
+                error_log('Paystack could not reassign the queued payment: ' . $e->getMessage());
             }
         }
 
         return true;
+    }
+
+    public static function userMayPay($queuedPayment, $currentUser): bool
+    {
+        if (!$queuedPayment || !$currentUser) {
+            return false;
+        }
+        if ((int) $queuedPayment->getType() !== (int) OJSPaymentManager::PAYMENT_TYPE_PUBLICATION) {
+            return (int) $queuedPayment->getUserId() === (int) $currentUser->getId();
+        }
+        try {
+            $submission = Repo::submission()->get((int) $queuedPayment->getAssocId());
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!$submission || (int) $submission->getData('contextId') !== (int) $queuedPayment->getContextId()) {
+            return false;
+        }
+        return in_array((int) $currentUser->getId(), self::assignedAuthorIds($submission), true);
     }
 
     public static function assignedAuthorIds($submission): array

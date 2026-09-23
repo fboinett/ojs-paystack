@@ -552,6 +552,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             if (!$submission || !$context) {
                 return $output;
             }
+            if (strpos($output, 'id="paystackPaymentPanel"') !== false && strpos($output, 'paystack-workflow') !== false) {
+                return $output;
+            }
             $this->addPaymentStage($templateMgr);
             $built = $this->paymentStageMarkup($request, $context, $submission);
             if ($built === null) {
@@ -745,7 +748,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         );
         $templateMgr->addJavaScript(
             'paystackStage',
-            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=154',
+            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=156',
             $scriptArgs
         );
     }
@@ -769,10 +772,13 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         $canPay = false;
         $payUrl = '';
         if ($queued && $user) {
-            $dao = DAORegistry::getDAO('QueuedPaymentDAO');
-            $canPay = ApcOwnerCompatibility::authorizeAndRepair($queued, $user, $dao);
+            try {
+                $canPay = ApcOwnerCompatibility::userMayPay($queued, $user);
+            } catch (\Throwable $e) {
+                $canPay = false;
+            }
             if ($canPay) {
-                $payUrl = $request->url(null, 'payment', 'pay', [$queued->getId()]);
+                $payUrl = $request->url(null, 'payment', 'pay', [(int) $queued->getId()]);
             }
         }
 

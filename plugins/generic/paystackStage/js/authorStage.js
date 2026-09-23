@@ -1,43 +1,41 @@
 (function () {
-	function sourceHtml() {
-		var source = document.getElementById('paystackPaymentSource');
-		return source ? source.innerHTML : '';
+	var saved = '';
+
+	function panel() {
+		return document.getElementById('paystackPaymentPanel');
 	}
 
-	function paymentPanel() {
-		var link = document.querySelector('#stageTabs li.pkp_workflow_paystack a');
-		if (!link) {
-			return null;
+	function capture() {
+		var node = panel();
+		if (node && (node.textContent || '').replace(/\s+/g, '') !== '') {
+			saved = node.innerHTML;
 		}
-		var panelId = link.getAttribute('aria-controls');
-		return panelId ? document.getElementById(panelId) : null;
 	}
 
-	function fillIfEmpty() {
-		var panel = paymentPanel();
-		var html = sourceHtml();
-		if (!panel || !html) {
+	function restore() {
+		var node = panel();
+		if (!node || !saved) {
 			return;
 		}
-		if ((panel.textContent || '').replace(/\s+/g, '') !== '') {
-			return;
+		if ((node.textContent || '').replace(/\s+/g, '') === '') {
+			node.innerHTML = saved;
 		}
-		panel.innerHTML = html;
 	}
 
 	function boot() {
-		fillIfEmpty();
+		capture();
+		restore();
 		if (!window.jQuery) {
 			return;
 		}
 		var $tabs = window.jQuery('#stageTabs');
-		$tabs.on('tabsactivate tabsload', function () {
-			window.setTimeout(fillIfEmpty, 50);
-			window.setTimeout(fillIfEmpty, 400);
+		$tabs.on('tabsbeforeactivate tabsactivate tabsload', function () {
+			window.setTimeout(restore, 0);
+			window.setTimeout(restore, 200);
 		});
 		window.jQuery(document).on('click', '#stageTabs li.pkp_workflow_paystack a', function () {
-			window.setTimeout(fillIfEmpty, 50);
-			window.setTimeout(fillIfEmpty, 600);
+			window.setTimeout(restore, 0);
+			window.setTimeout(restore, 300);
 		});
 	}
 
