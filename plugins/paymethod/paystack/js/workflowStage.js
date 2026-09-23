@@ -1,20 +1,58 @@
 (function ($) {
-	function activatePaymentTab() {
-		var config = window.pkpPaystackStage || {};
-		if (!config.autoSelect) {
-			return true;
+	function panelFromConfig(config) {
+		if (config.panelHtml) {
+			return config.panelHtml;
 		}
-		var $tabs = $('#stageTabs');
-		if (!$tabs.length || !$tabs.hasClass('ui-tabs')) {
+		return '<div class="paystack-workflow"><h2>Payment</h2><p>Pending Payment</p></div>';
+	}
+
+	function ensureTab(config) {
+		var $container = $('#stageTabs');
+		if (!$container.length) {
 			return false;
 		}
-		var index = $tabs.children('ul').children('li.pkp_workflow_paystack').index();
-		if (index < 0) {
+		var $ul = $container.children('ul').first();
+		if (!$ul.length) {
 			return false;
 		}
-		try {
-			$tabs.tabs('option', 'active', index);
-		} catch (e) {}
+
+		if (!$ul.children('li.pkp_workflow_paystack').length) {
+			var $review = $ul.children('li.pkp_workflow_externalReview, li.pkp_workflow_internalReview, li.pkp_workflow_review').last();
+			var $copy = $ul.children('li.pkp_workflow_editorial');
+			var $li = $('<li/>', { 'class': 'pkp_workflow_paystack stageIdPayment initiated' });
+			$li.append($('<a/>', {
+				href: '#paystackPaymentPanel',
+				'class': 'paystack',
+				text: config.label || 'Payment'
+			}));
+			if ($copy.length) {
+				$copy.before($li);
+			} else if ($review.length) {
+				$review.after($li);
+			} else {
+				$ul.append($li);
+			}
+		}
+
+		if (!$container.children('#paystackPaymentPanel').length) {
+			$container.append(
+				$('<div/>', { id: 'paystackPaymentPanel', 'class': 'paystack-workflow-panel' }).html(panelFromConfig(config))
+			);
+		}
+
+		if ($container.hasClass('ui-tabs')) {
+			try {
+				$container.tabs('refresh');
+			} catch (e) {}
+			if (config.autoSelect) {
+				var index = $ul.children('li').index($ul.children('li.pkp_workflow_paystack'));
+				if (index >= 0) {
+					try {
+						$container.tabs('option', 'active', index);
+					} catch (e2) {}
+				}
+			}
+		}
 		return true;
 	}
 
@@ -31,7 +69,7 @@
 		$('a[href]').each(function () {
 			var href = String($(this).attr('href') || '');
 			var match = href.match(/(?:workflow\/access|authorDashboard\/submission)\/(\d+)/);
-			if (!match && /[?&]submissionId=(\d+)/.test(href)) {
+			if (!match) {
 				match = href.match(/[?&]submissionId=(\d+)/);
 			}
 			if (!match || !wanted[match[1]]) {
@@ -54,18 +92,22 @@
 	}
 
 	function boot() {
+		var config = window.pkpPaystackStage || null;
 		relabelQueue();
-		if (activatePaymentTab()) {
+		if (!config) {
+			return;
+		}
+		if (ensureTab(config)) {
 			return;
 		}
 		var tries = 0;
 		var timer = setInterval(function () {
 			tries += 1;
 			relabelQueue();
-			if (activatePaymentTab() || tries > 40) {
+			if (ensureTab(config) || tries > 60) {
 				clearInterval(timer);
 			}
-		}, 250);
+		}, 200);
 	}
 
 	$(boot);

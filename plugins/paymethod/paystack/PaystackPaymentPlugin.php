@@ -551,19 +551,28 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         }
 
         $pendingIds = $this->pendingPaymentSubmissionIds((int) $context->getId());
+        $flags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+        if ($submission) {
+            $built = $this->paymentStageMarkup($request, $context, $submission);
+            if ($built && !empty($built['config'])) {
+                $templateMgr->addHeader(
+                    'paystackStageData',
+                    '<script>window.pkpPaystackStage=' . json_encode($built['config'], $flags) . ';</script>',
+                    ['contexts' => ['backend', 'frontend']]
+                );
+            }
+        }
         $templateMgr->addHeader(
             'paystackPendingIds',
             '<script>window.pkpPaystackPendingIds=' . json_encode(array_values($pendingIds)) . ';</script>',
-            ['contexts' => ['backend']]
+            ['contexts' => ['backend', 'frontend']]
         );
-        $scriptUrl = $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js';
-        if (method_exists($templateMgr, 'addJavaScript')) {
-            $templateMgr->addJavaScript(
-                'paystackStage',
-                $scriptUrl,
-                ['contexts' => ['backend']]
-            );
-        }
+        $scriptUrl = $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=141';
+        $templateMgr->addHeader(
+            'paystackStageJs',
+            '<script src="' . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8') . '"></script>',
+            ['contexts' => ['backend', 'frontend']]
+        );
     }
 
     /**
@@ -602,31 +611,38 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             'waiting' => __('plugins.paymethod.paystack.workflow.status.waiting'),
         ][$status['status']] ?? $status['status'];
 
-        $panel = '<div id="paystackPaymentPanel" class="paystack-workflow-panel"><div class="paystack-workflow">';
-        $panel .= '<h2>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8') . '</h2>';
-        $panel .= '<div class="paystack-workflow__status paystack-workflow__status--' . htmlspecialchars($status['status'], ENT_QUOTES, 'UTF-8') . '">';
-        $panel .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.fee'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
-        $panel .= htmlspecialchars($amountText, ENT_QUOTES, 'UTF-8') . '</p>';
-        $panel .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.paymentHistory.status'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
-        $panel .= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') . '</p></div>';
+        $inner = '<div class="paystack-workflow">';
+        $inner .= '<h2>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8') . '</h2>';
+        $inner .= '<div class="paystack-workflow__status paystack-workflow__status--' . htmlspecialchars($status['status'], ENT_QUOTES, 'UTF-8') . '">';
+        $inner .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.fee'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
+        $inner .= htmlspecialchars($amountText, ENT_QUOTES, 'UTF-8') . '</p>';
+        $inner .= '<p><strong>' . htmlspecialchars(__('plugins.paymethod.paystack.paymentHistory.status'), ENT_QUOTES, 'UTF-8') . ':</strong> ';
+        $inner .= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') . '</p></div>';
         if ($status['status'] === 'due' && $canPay) {
-            $panel .= '<p><a class="pkp_button" href="' . htmlspecialchars($payUrl, ENT_QUOTES, 'UTF-8') . '">';
-            $panel .= htmlspecialchars(__('plugins.paymethod.paystack.paymentDetails.payNow'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+            $inner .= '<p><a class="pkp_button" href="' . htmlspecialchars($payUrl, ENT_QUOTES, 'UTF-8') . '">';
+            $inner .= htmlspecialchars(__('plugins.paymethod.paystack.paymentDetails.payNow'), ENT_QUOTES, 'UTF-8') . '</a></p>';
         } elseif ($status['status'] === 'due') {
-            $panel .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.editorRequested'), ENT_QUOTES, 'UTF-8') . '</p>';
+            $inner .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.editorRequested'), ENT_QUOTES, 'UTF-8') . '</p>';
         } elseif ($status['status'] === 'paid') {
-            $panel .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.paidHelp'), ENT_QUOTES, 'UTF-8') . '</p>';
+            $inner .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.paidHelp'), ENT_QUOTES, 'UTF-8') . '</p>';
         }
-        $panel .= '</div></div>';
+        $inner .= '</div>';
 
-        $li = '<li class="pkp_workflow_paystack stageIdPayment' . ($status['status'] === 'due' ? ' initiated' : ' initiated') . '">';
-        $li .= '<a href="#paystackPaymentPanel">' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8') . '</a></li>';
+        $panel = '<div id="paystackPaymentPanel" class="paystack-workflow-panel">' . $inner . '</div>';
+        $label = htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8');
+        $li = '<li class="pkp_workflow_paystack stageIdPayment initiated"><a class="paystack" href="#paystackPaymentPanel">' . $label . '</a></li>';
 
-        if ($status['status'] === 'due') {
-            $panel .= '<script>window.pkpPaystackStage={autoSelect:true};</script>';
-        }
-
-        return ['li' => $li, 'panel' => $panel];
+        return [
+            'li' => $li,
+            'panel' => $panel,
+            'config' => [
+                'label' => __('plugins.paymethod.paystack.workflow.tab'),
+                'panelHtml' => $inner,
+                'autoSelect' => $status['status'] === 'due',
+                'status' => $status['status'],
+                'canPay' => $canPay,
+            ],
+        ];
     }
 
     private function listenForEditorialDecisions(): void
