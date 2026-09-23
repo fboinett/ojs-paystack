@@ -491,7 +491,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
      */
     public function injectPaymentStage($output, $template = null)
     {
-        if (!is_string($output) || strpos($output, 'id="stageTabs"') === false || strpos($output, 'pkp_workflow_paystack') !== false) {
+        if (!is_string($output) || strpos($output, 'id="stageTabs"') === false) {
             return $output;
         }
         try {
@@ -502,36 +502,49 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             if (!$submission || !$context) {
                 return $output;
             }
+            $this->addPaymentStage($templateMgr);
             $built = $this->paymentStageMarkup($request, $context, $submission);
             if ($built === null) {
                 return $output;
             }
-            $inserted = false;
-            $marker = 'pkp_workflow_editorial';
-            $markerPos = strpos($output, $marker);
-            if ($markerPos !== false) {
-                $liStart = strrpos(substr($output, 0, $markerPos), '<li');
-                if ($liStart !== false) {
-                    $output = substr($output, 0, $liStart) . $built['li'] . substr($output, $liStart);
-                    $inserted = true;
+            $already = strpos($output, 'pkp_workflow_paystack') !== false;
+            $inserted = $already;
+            if (!$already) {
+                $marker = 'pkp_workflow_editorial';
+                $markerPos = strpos($output, $marker);
+                if ($markerPos !== false) {
+                    $liStart = strrpos(substr($output, 0, $markerPos), '<li');
+                    if ($liStart !== false) {
+                        $output = substr($output, 0, $liStart) . $built['li'] . substr($output, $liStart);
+                        $inserted = true;
+                    }
+                }
+                if (!$inserted) {
+                    $ulClose = strpos($output, '</ul>');
+                    if ($ulClose !== false) {
+                        $output = substr($output, 0, $ulClose) . $built['li'] . substr($output, $ulClose);
+                        $inserted = true;
+                    }
+                }
+            } else {
+                $output = preg_replace(
+                    '/(<li[^>]*class="[^"]*pkp_workflow_paystack[^"]*"[^>]*>\s*<a\b[^>]*\bhref=")[^"]*(")/',
+                    '$1#paystackPaymentPanel$2',
+                    $output,
+                    1
+                );
+            }
+            if (strpos($output, 'id="paystackPaymentPanel"') === false) {
+                $tabsPos = strpos($output, 'id="stageTabs"');
+                if ($tabsPos !== false) {
+                    $ulEnd = strpos($output, '</ul>', $tabsPos);
+                    if ($ulEnd !== false) {
+                        $ulEnd += strlen('</ul>');
+                        $output = substr($output, 0, $ulEnd) . $built['panel'] . substr($output, $ulEnd);
+                    }
                 }
             }
-            if (!$inserted) {
-                $ulClose = strpos($output, '</ul>');
-                if ($ulClose !== false) {
-                    $output = substr($output, 0, $ulClose) . $built['li'] . substr($output, $ulClose);
-                    $inserted = true;
-                }
-            }
-            $tabsPos = strpos($output, 'id="stageTabs"');
-            if ($tabsPos !== false) {
-                $ulEnd = strpos($output, '</ul>', $tabsPos);
-                if ($ulEnd !== false) {
-                    $ulEnd += strlen('</ul>');
-                    $output = substr($output, 0, $ulEnd) . $built['panel'] . substr($output, $ulEnd);
-                }
-            }
-            if ($inserted) {
+            if ($inserted && !$already) {
                 $stageId = (int) $submission->getData('stageId');
                 if ($stageId >= WORKFLOW_STAGE_ID_EDITING) {
                     $output = preg_replace_callback(
@@ -548,6 +561,45 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             error_log('Paystack stage injection failed: ' . $e->getMessage());
         }
         return $output;
+    }
+
+    /**
+     * Add Payment to the stage list the templates already loop over.
+     * Authors and editors then render it like Submission and Review.
+     */
+    public function addPaymentStage($templateMgr): void
+    {
+        if (!is_object($templateMgr) || !method_exists($templateMgr, 'getTemplateVars')) {
+            return;
+        }
+        $stages = $templateMgr->getTemplateVars('workflowStages');
+        if (!is_array($stages)) {
+            return;
+        }
+        foreach ($stages as $stage) {
+            if (is_array($stage) && (($stage['path'] ?? '') === 'paystack')) {
+                return;
+            }
+        }
+        $payment = [
+            'id' => 3.5,
+            'translationKey' => 'plugins.paymethod.paystack.workflow.tab',
+            'path' => 'paystack',
+        ];
+        $rebuilt = [];
+        $inserted = false;
+        foreach ($stages as $key => $stage) {
+            $stageId = is_array($stage) ? (int) ($stage['id'] ?? 0) : 0;
+            if (!$inserted && $stageId >= WORKFLOW_STAGE_ID_EDITING) {
+                $rebuilt['paystack'] = $payment;
+                $inserted = true;
+            }
+            $rebuilt[$key] = $stage;
+        }
+        if (!$inserted) {
+            $rebuilt['paystack'] = $payment;
+        }
+        $templateMgr->assign('workflowStages', $rebuilt);
     }
 
     /**

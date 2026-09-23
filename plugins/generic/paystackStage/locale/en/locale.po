@@ -11,3 +11,7 @@ msgstr "Paystack Payment Stage"
 
 msgid "plugins.generic.paystackStage.description"
 msgstr "Shows the Payment stage after Review for authors and editors. Enable this together with Paystack Fee Payment."
+
+msgid "plugins.paymethod.paystack.workflow.tab"
+msgstr "Payment"
+

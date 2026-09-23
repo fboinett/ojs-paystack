@@ -15,6 +15,7 @@
 namespace APP\plugins\generic\paystackStage;
 
 use APP\core\Application;
+use APP\template\TemplateManager;
 use PKP\plugins\GenericPlugin;
 use PKP\plugins\Hook;
 use PKP\plugins\PluginRegistry;
@@ -23,9 +24,6 @@ class PaystackStagePlugin extends GenericPlugin
 {
     /** @var bool */
     private $paymethodLoaded = false;
-
-    /** @var bool */
-    private $capturingAuthorDashboard = false;
 
     public function register($category, $path, $mainContextId = null)
     {
@@ -40,63 +38,43 @@ class PaystackStagePlugin extends GenericPlugin
     }
 
     /**
-     * Load the payment plugin once the request context is known.
-     * Checking enabled() at register() is too early and skips authors.
+     * The author dashboard does not load payment plugins. This plugin does,
+     * then adds Payment to the same stage list the page already renders.
      */
     public function ensurePaymethod($hookName, $args)
     {
-        $request = Application::get()->getRequest();
-        $context = $request ? $request->getContext() : null;
-        $contextId = $context ? (int) $context->getId() : null;
-        if (!$this->getEnabled($contextId)) {
+        if (!$this->getEnabled()) {
             return false;
         }
         if (!$this->paymethodLoaded) {
             $this->paymethodLoaded = true;
             PluginRegistry::loadCategory('paymethod', true);
         }
+        $templateMgr = $args[0] ?? null;
         $paystack = PluginRegistry::getPlugin('paymethod', 'PaystackPayment');
-        if (!$paystack) {
-            return false;
+        if ($paystack && is_object($templateMgr) && method_exists($paystack, 'addPaymentStage')) {
+            $paystack->addPaymentStage($templateMgr);
         }
-        if (method_exists($paystack, 'registerStageFilter')) {
+        if ($paystack && method_exists($paystack, 'registerStageFilter')) {
             $paystack->registerStageFilter($hookName, $args);
         }
-        if ($hookName !== 'TemplateManager::display') {
-            return false;
-        }
-        $template = (string) ($args[1] ?? '');
-        if (
-            strpos($template, 'authorDashboard.tpl') !== false
-            && !$this->capturingAuthorDashboard
-            && isset($args[0])
-            && is_object($args[0])
-        ) {
-            $this->capturingAuthorDashboard = true;
-            try {
-                ob_start();
-                $args[0]->display($template);
-                $html = ob_get_clean();
-            } catch (\Throwable $e) {
-                if (ob_get_level() > 0) {
-                    ob_end_clean();
-                }
-                $this->capturingAuthorDashboard = false;
-                error_log('Paystack author stage failed: ' . $e->getMessage());
-                return false;
-            }
-            $this->capturingAuthorDashboard = false;
-            if (!is_string($html) || strpos($html, 'id="stageTabs"') === false) {
-                return false;
-            }
-            if (method_exists($paystack, 'injectPaymentStage')) {
-                $html = $paystack->injectPaymentStage($html);
-            }
-            $args[2] = $html;
-            return true;
-        }
-        if (method_exists($paystack, 'loadFrontendStyles')) {
+        if ($hookName === 'TemplateManager::display' && $paystack && method_exists($paystack, 'loadFrontendStyles')) {
             $paystack->loadFrontendStyles($hookName, $args);
+        }
+        if (
+            $hookName === 'TemplateManager::display'
+            && is_object($templateMgr)
+            && method_exists($templateMgr, 'addJavaScript')
+        ) {
+            $request = Application::get()->getRequest();
+            $templateMgr->addJavaScript(
+                'paystackAuthorStage',
+                $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/authorStage.js?v=145',
+                [
+                    'contexts' => ['backend'],
+                    'priority' => TemplateManager::STYLE_SEQUENCE_LAST,
+                ]
+            );
         }
         return false;
     }
