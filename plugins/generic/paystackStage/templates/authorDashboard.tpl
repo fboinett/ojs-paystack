@@ -62,7 +62,7 @@
 						{foreach from=$workflowStages item=stage}
 							{if $stage.path == 'editorial'}
 								<li class="pkp_workflow_paystack stageIdPayment">
-									<a href="#paystackPaymentPanel">{translate key="plugins.paymethod.paystack.workflow.tab"}</a>
+									<a href="{$paystackStageUrl|escape}">{translate key="plugins.paymethod.paystack.workflow.tab"}</a>
 								</li>
 							{/if}
 							<li class="pkp_workflow_{$stage.path} stageId{$stage.id}{if $stage.statusKey} initiated{/if}">
@@ -77,29 +77,6 @@
 							</li>
 						{/foreach}
 					</ul>
-					<div id="paystackPaymentPanel" class="paystack-workflow-panel">
-						<div class="paystack-workflow">
-							<h2>{translate key="plugins.paymethod.paystack.workflow.tab"}</h2>
-							<div class="paystack-workflow__status paystack-workflow__status--{$paystackFeeStatus|default:'waiting'|escape}">
-								<p>
-									<strong>{translate key="plugins.paymethod.paystack.workflow.fee"}:</strong>
-									{$paystackAmountText|default:''|escape}
-								</p>
-								<p>
-									<strong>{translate key="common.status"}:</strong>
-									{$paystackStatusLabel|default:'Waiting for the editor to request payment'|escape}
-								</p>
-							</div>
-							{if $paystackCanPay && $paystackPayUrl}
-								<p>
-									<a class="pkp_button" href="{$paystackPayUrl|escape}">{translate key="plugins.paymethod.paystack.paymentDetails.payNow"}</a>
-								</p>
-							{/if}
-							{if $paystackHelp}
-								<p>{$paystackHelp|escape}</p>
-							{/if}
-						</div>
-					</div>
 				</div>
 			</tab>
 			<tab id="publication" label="{translate key="submission.publication"}">

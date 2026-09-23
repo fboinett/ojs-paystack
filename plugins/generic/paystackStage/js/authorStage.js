@@ -12,8 +12,9 @@
 			var li = document.createElement('li');
 			li.className = 'pkp_workflow_paystack stageIdPayment';
 			var a = document.createElement('a');
-			a.setAttribute('href', '#paystackPaymentPanel');
-			a.textContent = (window.pkpPaystackStage && window.pkpPaystackStage.label) || 'Payment';
+			var config = window.pkpPaystackStage || {};
+			a.setAttribute('href', config.fetchUrl || '#paystackPaymentPanel');
+			a.textContent = config.label || 'Payment';
 			li.appendChild(a);
 			var copy = ul.querySelector('li.pkp_workflow_editorial');
 			if (copy) {
@@ -22,13 +23,9 @@
 				ul.appendChild(li);
 			}
 		}
-		if (!document.getElementById('paystackPaymentPanel')) {
-			var config = window.pkpPaystackStage || {};
-			var panel = document.createElement('div');
-			panel.id = 'paystackPaymentPanel';
-			panel.className = 'paystack-workflow-panel';
-			panel.innerHTML = config.panelHtml || '<div class="paystack-workflow"><h2>Payment</h2><p><strong>Status:</strong> Waiting for the editor to request payment</p></div>';
-			container.appendChild(panel);
+		var stale = document.getElementById('paystackPaymentPanel');
+		if (stale && stale.parentNode) {
+			stale.parentNode.removeChild(stale);
 		}
 		if (window.jQuery) {
 			var $tabs = window.jQuery('#stageTabs');

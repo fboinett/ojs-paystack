@@ -19,7 +19,7 @@
 			var li = document.createElement('li');
 			li.className = 'pkp_workflow_paystack stageIdPayment';
 			var a = document.createElement('a');
-			a.setAttribute('href', '#paystackPaymentPanel');
+			a.setAttribute('href', config.fetchUrl || '#paystackPaymentPanel');
 			a.className = '';
 			a.textContent = config.label || 'Payment';
 			li.appendChild(a);
@@ -32,13 +32,15 @@
 			} else {
 				ul.appendChild(li);
 			}
+		} else if (config.fetchUrl) {
+			var existing = ul.querySelector('li.pkp_workflow_paystack a');
+			if (existing && existing.getAttribute('href') !== config.fetchUrl) {
+				existing.setAttribute('href', config.fetchUrl);
+			}
 		}
-		if (!document.getElementById('paystackPaymentPanel')) {
-			var panel = document.createElement('div');
-			panel.id = 'paystackPaymentPanel';
-			panel.className = 'paystack-workflow-panel';
-			panel.innerHTML = config.panelHtml || '<div class="paystack-workflow"><h2>Payment</h2><p>Pending Payment</p></div>';
-			container.appendChild(panel);
+		var stale = document.getElementById('paystackPaymentPanel');
+		if (stale && stale.parentNode) {
+			stale.parentNode.removeChild(stale);
 		}
 		if (window.jQuery) {
 			var $tabs = window.jQuery('#stageTabs');

@@ -40,6 +40,7 @@ use PKP\linkAction\request\AjaxModal;
 use PKP\payment\QueuedPayment;
 use PKP\plugins\Hook;
 use PKP\plugins\PaymethodPlugin;
+use PKP\security\Role;
 use PKP\site\VersionCheck;
 use Slim\Http\Request as SlimRequest;
 
@@ -333,6 +334,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             case 'receipt':
                 $this->handleReceipt($request);
                 return;
+            case 'stage':
+                $this->handleStage($request);
+                return;
             default:
                 $request->redirect(null, 'index');
         }
@@ -567,24 +571,17 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                         $inserted = true;
                     }
                 }
-            } else {
+            }
+            $stageUrl = $built['config']['fetchUrl'] ?? '';
+            if ($stageUrl !== '') {
                 $output = preg_replace(
                     '/(<li[^>]*class="[^"]*pkp_workflow_paystack[^"]*"[^>]*>\s*<a\b[^>]*\bhref=")[^"]*(")/',
-                    '$1#paystackPaymentPanel$2',
+                    '$1' . htmlspecialchars($stageUrl, ENT_QUOTES, 'UTF-8') . '$2',
                     $output,
                     1
                 );
             }
-            if (strpos($output, 'id="paystackPaymentPanel"') === false) {
-                $tabsPos = strpos($output, 'id="stageTabs"');
-                if ($tabsPos !== false) {
-                    $ulEnd = strpos($output, '</ul>', $tabsPos);
-                    if ($ulEnd !== false) {
-                        $ulEnd += strlen('</ul>');
-                        $output = substr($output, 0, $ulEnd) . $built['panel'] . substr($output, $ulEnd);
-                    }
-                }
-            }
+            $output = $this->removeStaticPaymentPanel($output);
             if ($inserted && !$already) {
                 $stageId = (int) $submission->getData('stageId');
                 if ($stageId >= WORKFLOW_STAGE_ID_EDITING) {
@@ -662,6 +659,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         if (!$context || !$submission) {
             return;
         }
+        $templateMgr->assign('paystackStageUrl', $this->paymentStageUrl($request, $submission));
         $built = $this->paymentStageMarkup($request, $context, $submission);
         if (!$built || empty($built['config'])) {
             return;
@@ -742,7 +740,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         );
         $templateMgr->addJavaScript(
             'paystackStage',
-            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=143',
+            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=152',
             $scriptArgs
         );
     }
@@ -802,9 +800,10 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         }
         $inner .= '</div>';
 
+        $fetchUrl = $this->paymentStageUrl($request, $submission);
         $panel = '<div id="paystackPaymentPanel" class="paystack-workflow-panel">' . $inner . '</div>';
         $label = htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8');
-        $li = '<li class="pkp_workflow_paystack stageIdPayment"><a href="#paystackPaymentPanel">' . $label . '</a></li>';
+        $li = '<li class="pkp_workflow_paystack stageIdPayment"><a href="' . htmlspecialchars($fetchUrl, ENT_QUOTES, 'UTF-8') . '">' . $label . '</a></li>';
 
         return [
             'li' => $li,
@@ -812,6 +811,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             'config' => [
                 'label' => __('plugins.paymethod.paystack.workflow.tab'),
                 'panelHtml' => $inner,
+                'fetchUrl' => $fetchUrl,
                 'autoSelect' => false,
                 'status' => $status['status'],
                 'canPay' => $canPay,
@@ -820,6 +820,108 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                 'amountFormatted' => $amountText,
             ],
         ];
+    }
+
+    /**
+     * Reload the payment stage the same way Submission and Copyediting reload.
+     */
+    private function handleStage(Request $request): void
+    {
+        $context = $request->getContext();
+        $user = $request->getUser();
+        $submissionId = (int) $request->getUserVar('submissionId');
+        $submission = $submissionId ? Repo::submission()->get($submissionId) : null;
+        if (!$this->userCanViewSubmission($user, $context, $submission)) {
+            $json = new JSONMessage(false, __('user.authorization.accessDenied'));
+            header('Content-Type: application/json; charset=utf-8');
+            echo $json->getString();
+            exit;
+        }
+        $built = $this->paymentStageMarkup($request, $context, $submission);
+        $html = $built['config']['panelHtml'] ?? '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.status.waiting'), ENT_QUOTES, 'UTF-8') . '</p>';
+        $json = new JSONMessage(true, $html);
+        header('Content-Type: application/json; charset=utf-8');
+        echo $json->getString();
+        exit;
+    }
+
+    private function paymentStageUrl(Request $request, $submission): string
+    {
+        return $request->url(null, 'payment', 'plugin', [$this->getName(), 'stage'], [
+            'submissionId' => (int) $submission->getId(),
+        ]);
+    }
+
+    private function userCanViewSubmission($user, $context, $submission): bool
+    {
+        if (!$user || !$context || !$submission) {
+            return false;
+        }
+        if ((int) $submission->getData('contextId') !== (int) $context->getId()) {
+            return false;
+        }
+        $userId = (int) $user->getId();
+        try {
+            if ($user->hasRole([
+                Role::ROLE_ID_SITE_ADMIN,
+                Role::ROLE_ID_MANAGER,
+                Role::ROLE_ID_SUB_EDITOR,
+                Role::ROLE_ID_ASSISTANT,
+            ], (int) $context->getId())) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+        }
+        $publication = $submission->getCurrentPublication();
+        if ($publication) {
+            foreach ((array) $publication->getData('authors') as $author) {
+                if ($author && (int) $author->getData('userId') === $userId) {
+                    return true;
+                }
+            }
+        }
+        try {
+            $dao = DAORegistry::getDAO('StageAssignmentDAO');
+            $assigned = $dao->getBySubmissionAndUserIdAndStageId($submission->getId(), $userId, null);
+            if (is_object($assigned) && method_exists($assigned, 'toArray')) {
+                return count($assigned->toArray()) > 0;
+            }
+        } catch (\Throwable $e) {
+        }
+        return false;
+    }
+
+    private function removeStaticPaymentPanel(string $output): string
+    {
+        $marker = 'id="paystackPaymentPanel"';
+        $pos = strpos($output, $marker);
+        if ($pos === false) {
+            return $output;
+        }
+        $start = strrpos(substr($output, 0, $pos), '<div');
+        if ($start === false) {
+            return $output;
+        }
+        $length = strlen($output);
+        $depth = 0;
+        $i = $start;
+        while ($i < $length) {
+            if (substr($output, $i, 4) === '<div') {
+                $depth++;
+                $i += 4;
+                continue;
+            }
+            if (substr($output, $i, 6) === '</div>') {
+                $depth--;
+                $i += 6;
+                if ($depth === 0) {
+                    return substr($output, 0, $start) . substr($output, $i);
+                }
+                continue;
+            }
+            $i++;
+        }
+        return $output;
     }
 
     private function listenForEditorialDecisions(): void
