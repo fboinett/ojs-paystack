@@ -36,6 +36,7 @@ class PaystackStagePlugin extends GenericPlugin
                 $this->setEnabled(true);
             }
             Hook::add('TemplateResource::getFilename', [$this, 'overrideAuthorDashboard']);
+            Hook::add('LoadComponentHandler', [$this, 'loadStageTab']);
             Hook::add('LoadHandler', [$this, 'ensurePaymethod']);
             Hook::add('TemplateManager::display', [$this, 'ensurePaymethod']);
             Hook::add('TemplateManager::fetch', [$this, 'ensurePaymethod']);
@@ -90,6 +91,29 @@ class PaystackStagePlugin extends GenericPlugin
             );
         }
         return false;
+    }
+
+    /**
+     * Authors cannot call the payment page. Serve the stage through a
+     * component request, which is what the other author tabs use.
+     */
+    public function loadStageTab($hookName, $args)
+    {
+        $component = $args[0] ?? '';
+        if ($component !== 'paystack.stage.PaystackStageTabHandler') {
+            return false;
+        }
+        if (!$this->paymethodLoaded) {
+            $this->paymethodLoaded = true;
+            PluginRegistry::loadCategory('paymethod', true);
+        }
+        $file = dirname(__FILE__) . '/../../paymethod/paystack/classes/PaystackStageTabHandler.php';
+        if (!is_file($file)) {
+            return false;
+        }
+        require_once $file;
+        $args[2] = new \APP\plugins\paymethod\paystack\classes\PaystackStageTabHandler();
+        return true;
     }
 
     /**

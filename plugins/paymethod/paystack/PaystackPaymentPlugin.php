@@ -452,6 +452,11 @@ class PaystackPaymentPlugin extends PaymethodPlugin
     {
         try {
             $component = $args[0] ?? '';
+            if ($component === 'paystack.stage.PaystackStageTabHandler') {
+                require_once dirname(__FILE__) . '/classes/PaystackStageTabHandler.php';
+                $args[2] = new \APP\plugins\paymethod\paystack\classes\PaystackStageTabHandler();
+                return true;
+            }
             if ($component !== 'grid.subscriptions.PaymentsGridHandler') {
                 return false;
             }
@@ -822,6 +827,20 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         ];
     }
 
+    public function renderStage(Request $request, $submission): string
+    {
+        $context = $request->getContext();
+        $built = $context && $submission ? $this->paymentStageMarkup($request, $context, $submission) : null;
+        if ($built && !empty($built['config']['panelHtml'])) {
+            return $built['config']['panelHtml'];
+        }
+        return '<div class="paystack-workflow"><h2>'
+            . htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8')
+            . '</h2><p>'
+            . htmlspecialchars(__('plugins.paymethod.paystack.workflow.status.waiting'), ENT_QUOTES, 'UTF-8')
+            . '</p></div>';
+    }
+
     /**
      * Reload the payment stage the same way Submission and Copyediting reload.
      */
@@ -847,9 +866,15 @@ class PaystackPaymentPlugin extends PaymethodPlugin
 
     private function paymentStageUrl(Request $request, $submission): string
     {
-        return $request->url(null, 'payment', 'plugin', [$this->getName(), 'stage'], [
-            'submissionId' => (int) $submission->getId(),
-        ]);
+        return $request->getDispatcher()->url(
+            $request,
+            Application::ROUTE_COMPONENT,
+            null,
+            'paystack.stage.PaystackStageTabHandler',
+            'fetch',
+            null,
+            ['submissionId' => (int) $submission->getId()]
+        );
     }
 
     private function userCanViewSubmission($user, $context, $submission): bool
