@@ -17,6 +17,8 @@ use APP\core\Application;
 use PKP\core\JSONMessage;
 use PKP\handler\PKPHandler;
 use PKP\plugins\PluginRegistry;
+use PKP\security\authorization\AuthorDashboardAccessPolicy;
+use PKP\security\authorization\PolicySet;
 use PKP\security\authorization\SubmissionAccessPolicy;
 use PKP\security\Role;
 
@@ -42,7 +44,12 @@ class PaystackStageTabHandler extends PKPHandler
      */
     public function authorize($request, &$args, $roleAssignments)
     {
-        $this->addPolicy(new SubmissionAccessPolicy($request, $args, $roleAssignments));
+        $allowed = new PolicySet(PolicySet::COMBINING_PERMIT_OVERRIDES);
+        // Authors use the same rule as the rest of the author dashboard.
+        $allowed->addPolicy(new AuthorDashboardAccessPolicy($request, $args, $roleAssignments));
+        // Editors use the editorial submission rule.
+        $allowed->addPolicy(new SubmissionAccessPolicy($request, $args, $roleAssignments));
+        $this->addPolicy($allowed);
         return parent::authorize($request, $args, $roleAssignments);
     }
 

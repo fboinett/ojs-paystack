@@ -745,7 +745,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         );
         $templateMgr->addJavaScript(
             'paystackStage',
-            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=152',
+            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=154',
             $scriptArgs
         );
     }

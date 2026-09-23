@@ -12,6 +12,6 @@
 <version>
 	<application>paystack</application>
 	<type>plugins.paymethod</type>
-	<release>1.5.3.0</release>
+	<release>1.5.4.0</release>
 	<date>2026-09-22</date>
 </version>

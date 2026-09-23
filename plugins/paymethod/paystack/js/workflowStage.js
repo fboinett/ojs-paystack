@@ -42,10 +42,14 @@
 		if (stale && stale.parentNode) {
 			stale.parentNode.removeChild(stale);
 		}
-		if (window.jQuery) {
-			var $tabs = window.jQuery('#stageTabs');
-			if ($tabs.hasClass('ui-tabs')) {
-				try { $tabs.tabs('refresh'); } catch (e) {}
+		if (window.jQuery && !ul.querySelector('li.pkp_workflow_paystack[data-paystack-ready]')) {
+			var created = ul.querySelector('li.pkp_workflow_paystack');
+			if (created) {
+				created.setAttribute('data-paystack-ready', '1');
+				var $tabs = window.jQuery('#stageTabs');
+				if ($tabs.hasClass('ui-tabs')) {
+					try { $tabs.tabs('refresh'); } catch (e) {}
+				}
 			}
 		}
 		return true;
@@ -58,23 +62,34 @@
 		}
 		var wanted = {};
 		ids.forEach(function (id) { wanted[String(id)] = true; });
-		$all('a[href]').forEach(function (a) {
-			var href = a.getAttribute('href') || '';
+		var items = document.querySelectorAll('.listPanel__item, .pkpListPanel__item');
+		Array.prototype.forEach.call(items, function (item) {
+			if (item.closest && item.closest('#stageTabs')) {
+				return;
+			}
+			var link = item.querySelector('a[href]');
+			if (!link) {
+				return;
+			}
+			var href = link.getAttribute('href') || '';
 			var match = href.match(/(?:workflow\/access|authorDashboard\/submission)\/(\d+)/) || href.match(/[?&]submissionId=(\d+)/);
 			if (!match || !wanted[match[1]]) {
 				return;
 			}
-			var item = a.closest('.listPanel__item, .pkpListPanel__item, li');
-			if (!item) {
-				return;
-			}
-			$all('button, span, a', item).forEach(function (el) {
-				if (el.children.length) {
+			var nodes = item.querySelectorAll('.pkpBadge, button, span');
+			Array.prototype.forEach.call(nodes, function (el) {
+				if (el.closest && el.closest('#stageTabs')) {
 					return;
 				}
-				var text = (el.textContent || '').trim();
-				if (text === 'Copyediting' || text === 'Review' || text === 'Editorial') {
-					el.textContent = 'Pending Payment';
+				for (var i = 0; i < el.childNodes.length; i++) {
+					var node = el.childNodes[i];
+					if (node.nodeType !== 3) {
+						continue;
+					}
+					var text = (node.nodeValue || '').trim();
+					if (text === 'Review' || text === 'Copyediting' || text === 'Editorial') {
+						node.nodeValue = node.nodeValue.replace(text, 'Pending Payment');
+					}
 				}
 			});
 		});
@@ -83,21 +98,26 @@
 	function boot() {
 		relabelQueue();
 		var config = window.pkpPaystackStage || null;
-		if (!config) {
-			return;
-		}
 		var tries = 0;
 		var timer = setInterval(function () {
 			tries += 1;
 			relabelQueue();
-			if (ensureTab(config) && tries > 2) {
-				clearInterval(timer);
+			if (config) {
+				ensureTab(config);
 			}
-			if (tries > 80) {
+			if (tries > 40) {
 				clearInterval(timer);
 			}
 		}, 250);
-		ensureTab(config);
+		if (config) {
+			ensureTab(config);
+		}
+		if (window.MutationObserver && document.body) {
+			var observer = new MutationObserver(function () {
+				relabelQueue();
+			});
+			observer.observe(document.body, {childList: true, subtree: true, characterData: true});
+		}
 	}
 
 	if (document.readyState === 'loading') {
