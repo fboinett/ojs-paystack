@@ -30,6 +30,7 @@ class PaystackStagePlugin extends GenericPlugin
         $success = parent::register($category, $path, $mainContextId);
         if ($success) {
             $this->addLocaleData();
+            Hook::add('TemplateResource::getFilename', [$this, 'overrideAuthorDashboard']);
             Hook::add('LoadHandler', [$this, 'ensurePaymethod']);
             Hook::add('TemplateManager::display', [$this, 'ensurePaymethod']);
             Hook::add('TemplateManager::fetch', [$this, 'ensurePaymethod']);
@@ -43,16 +44,15 @@ class PaystackStagePlugin extends GenericPlugin
      */
     public function ensurePaymethod($hookName, $args)
     {
-        if (!$this->getEnabled()) {
-            return false;
-        }
         if (!$this->paymethodLoaded) {
             $this->paymethodLoaded = true;
             PluginRegistry::loadCategory('paymethod', true);
         }
         $templateMgr = $args[0] ?? null;
+        $template = (string) ($args[1] ?? '');
+        $isAuthorDashboard = strpos($template, 'authorDashboard.tpl') !== false;
         $paystack = PluginRegistry::getPlugin('paymethod', 'PaystackPayment');
-        if ($paystack && is_object($templateMgr) && method_exists($paystack, 'addPaymentStage')) {
+        if (!$isAuthorDashboard && $paystack && is_object($templateMgr) && method_exists($paystack, 'addPaymentStage')) {
             $paystack->addPaymentStage($templateMgr);
         }
         if ($paystack && method_exists($paystack, 'registerStageFilter')) {
@@ -60,6 +60,14 @@ class PaystackStagePlugin extends GenericPlugin
         }
         if ($hookName === 'TemplateManager::display' && $paystack && method_exists($paystack, 'loadFrontendStyles')) {
             $paystack->loadFrontendStyles($hookName, $args);
+        }
+        if ($hookName === 'TemplateManager::display' && $isAuthorDashboard && is_object($templateMgr)) {
+            if (method_exists($templateMgr, 'clearCompiledTemplate')) {
+                $templateMgr->clearCompiledTemplate('authorDashboard/authorDashboard.tpl');
+            }
+            if ($paystack && method_exists($paystack, 'prepareAuthorTemplate')) {
+                $paystack->prepareAuthorTemplate($templateMgr);
+            }
         }
         if (
             $hookName === 'TemplateManager::display'
@@ -75,6 +83,23 @@ class PaystackStagePlugin extends GenericPlugin
                     'priority' => TemplateManager::STYLE_SEQUENCE_LAST,
                 ]
             );
+        }
+        return false;
+    }
+
+    /**
+     * OJS renders the author stage bar from authorDashboard.tpl.
+     * Replace that template so Payment is a real list item, not a script.
+     */
+    public function overrideAuthorDashboard($hookName, $args)
+    {
+        $template = (string) ($args[1] ?? '');
+        if ($template !== 'authorDashboard/authorDashboard.tpl') {
+            return false;
+        }
+        $path = dirname(__FILE__) . '/templates/authorDashboard.tpl';
+        if (file_exists($path)) {
+            $args[0] = $path;
         }
         return false;
     }

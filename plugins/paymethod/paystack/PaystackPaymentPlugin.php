@@ -603,6 +603,48 @@ class PaystackPaymentPlugin extends PaymethodPlugin
     }
 
     /**
+     * Variables for the author dashboard template override.
+     */
+    public function prepareAuthorTemplate($templateMgr): void
+    {
+        $request = Application::get()->getRequest();
+        $templateMgr->assign([
+            'paystackStatusLabel' => __('plugins.paymethod.paystack.workflow.status.waiting'),
+            'paystackAmountText' => '',
+            'paystackCanPay' => false,
+            'paystackPayUrl' => '',
+            'paystackFeeStatus' => 'waiting',
+            'paystackHelp' => __('plugins.paymethod.paystack.workflow.waitingHelp'),
+        ]);
+        $context = $request->getContext();
+        $submission = $templateMgr->getTemplateVars('submission');
+        if (!$context || !$submission) {
+            return;
+        }
+        $built = $this->paymentStageMarkup($request, $context, $submission);
+        if (!$built || empty($built['config'])) {
+            return;
+        }
+        $status = (string) $built['config']['status'];
+        $help = __('plugins.paymethod.paystack.workflow.waitingHelp');
+        if ($status === 'due' && !empty($built['config']['canPay'])) {
+            $help = __('plugins.paymethod.paystack.workflow.payHelp');
+        } elseif ($status === 'due') {
+            $help = __('plugins.paymethod.paystack.workflow.editorRequested');
+        } elseif ($status === 'paid') {
+            $help = __('plugins.paymethod.paystack.workflow.paidHelp');
+        }
+        $templateMgr->assign([
+            'paystackStatusLabel' => $built['config']['statusLabel'],
+            'paystackAmountText' => $built['config']['amountFormatted'],
+            'paystackCanPay' => !empty($built['config']['canPay']),
+            'paystackPayUrl' => $built['config']['payUrl'],
+            'paystackFeeStatus' => $status,
+            'paystackHelp' => $help,
+        ]);
+    }
+
+    /**
      * Queue data for the dashboard badge and keep unpaid articles out of copyediting.
      */
     private function preparePaymentStage($templateMgr, Request $request): void
@@ -732,6 +774,9 @@ class PaystackPaymentPlugin extends PaymethodPlugin
                 'autoSelect' => false,
                 'status' => $status['status'],
                 'canPay' => $canPay,
+                'payUrl' => $payUrl,
+                'statusLabel' => $statusLabel,
+                'amountFormatted' => $amountText,
             ],
         ];
     }
