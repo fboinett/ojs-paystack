@@ -516,6 +516,18 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             );
             if (!$count) {
                 $output = preg_replace('/(<\/ul>)/', $built['li'] . '$1', $output, 1);
+            } else {
+                $stageId = (int) $submission->getData('stageId');
+                if ($stageId >= WORKFLOW_STAGE_ID_EDITING) {
+                    $output = preg_replace_callback(
+                        '/selected:\s*(\d+)/',
+                        function ($matches) {
+                            return 'selected: ' . ((int) $matches[1] + 1);
+                        },
+                        $output,
+                        1
+                    );
+                }
             }
             $output = preg_replace(
                 '/(<div id="stageTabs"[^>]*>\s*<ul>.*?<\/ul>)/s',
@@ -586,7 +598,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
         );
         $templateMgr->addJavaScript(
             'paystackStage',
-            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=142',
+            $request->getBaseUrl() . '/' . $this->getPluginPath() . '/js/workflowStage.js?v=143',
             $scriptArgs
         );
     }
@@ -641,12 +653,14 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             $inner .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.editorRequested'), ENT_QUOTES, 'UTF-8') . '</p>';
         } elseif ($status['status'] === 'paid') {
             $inner .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.paidHelp'), ENT_QUOTES, 'UTF-8') . '</p>';
+        } else {
+            $inner .= '<p>' . htmlspecialchars(__('plugins.paymethod.paystack.workflow.waitingHelp'), ENT_QUOTES, 'UTF-8') . '</p>';
         }
         $inner .= '</div>';
 
         $panel = '<div id="paystackPaymentPanel" class="paystack-workflow-panel">' . $inner . '</div>';
         $label = htmlspecialchars(__('plugins.paymethod.paystack.workflow.tab'), ENT_QUOTES, 'UTF-8');
-        $li = '<li class="pkp_workflow_paystack stageIdPayment initiated"><a class="paystack" href="#paystackPaymentPanel">' . $label . '</a></li>';
+        $li = '<li class="pkp_workflow_paystack stageIdPayment"><a href="#paystackPaymentPanel">' . $label . '</a></li>';
 
         return [
             'li' => $li,
@@ -654,7 +668,7 @@ class PaystackPaymentPlugin extends PaymethodPlugin
             'config' => [
                 'label' => __('plugins.paymethod.paystack.workflow.tab'),
                 'panelHtml' => $inner,
-                'autoSelect' => $status['status'] === 'due',
+                'autoSelect' => false,
                 'status' => $status['status'],
                 'canPay' => $canPay,
             ],

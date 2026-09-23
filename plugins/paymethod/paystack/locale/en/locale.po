@@ -249,7 +249,7 @@ msgid "plugins.paymethod.paystack.workflow.editorRequested"
 msgstr "Pending payment. The assigned author should open this submission and click Pay with Paystack."
 
 msgid "plugins.paymethod.paystack.workflow.waitingHelp"
-msgstr "When the editor accepts the submission after review, they should choose “Request publication fee”. This tab will then show a Pay now button for the author."
+msgstr "Payment sits between Review and Copyediting. After review, the editor requests the publication fee here. The author then pays before copyediting begins."
 
 msgid "plugins.paymethod.paystack.workflow.paidHelp"
 msgstr "The publication fee is complete. Copyediting and proofreading can continue."

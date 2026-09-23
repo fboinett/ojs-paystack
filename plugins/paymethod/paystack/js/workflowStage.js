@@ -17,10 +17,10 @@
 		}
 		if (!ul.querySelector('li.pkp_workflow_paystack')) {
 			var li = document.createElement('li');
-			li.className = 'pkp_workflow_paystack stageIdPayment initiated';
+			li.className = 'pkp_workflow_paystack stageIdPayment';
 			var a = document.createElement('a');
 			a.setAttribute('href', '#paystackPaymentPanel');
-			a.className = 'paystack';
+			a.className = '';
 			a.textContent = config.label || 'Payment';
 			li.appendChild(a);
 			var copy = ul.querySelector('li.pkp_workflow_editorial');
@@ -44,12 +44,6 @@
 			var $tabs = window.jQuery('#stageTabs');
 			if ($tabs.hasClass('ui-tabs')) {
 				try { $tabs.tabs('refresh'); } catch (e) {}
-				if (config.autoSelect) {
-					var index = $tabs.children('ul').children('li.pkp_workflow_paystack').index();
-					if (index >= 0) {
-						try { $tabs.tabs('option', 'active', index); } catch (e2) {}
-					}
-				}
 			}
 		}
 		return true;
